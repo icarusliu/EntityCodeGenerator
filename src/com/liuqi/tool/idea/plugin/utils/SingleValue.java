@@ -1,3 +1,5 @@
+package com.liuqi.tool.idea.plugin.utils;
+
 /**
  * 单值对象
  * 线程不安全

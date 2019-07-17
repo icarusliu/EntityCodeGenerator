@@ -1,5 +1,5 @@
 <idea-plugin>
-  <id>com.liuqi.tool.idea.plugins</id>
+  <id>com.liuqi.tool.idea.plugin</id>
   <name>EntityCodeGenerator</name>
   <version>1.0</version>
   <vendor email="icarusliu@hotmail.com" url="cn.liumoran">刘奇</vendor>
@@ -63,7 +63,7 @@
 
   <actions>
     <!-- Add your actions here -->
-    <action class="GeneratorAction" id="codeGenerator" text="Entity Code Generator" keymap="">
+    <action class="com.liuqi.tool.idea.plugin.GeneratorAction" id="codeGenerator" text="Entity Code Generator" keymap="">
       <add-to-group group-id="WindowMenu"/>
     </action>
   </actions>
