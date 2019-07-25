@@ -202,10 +202,11 @@ public class GeneratorAction extends AnAction {
                 psiUtils.getOrCreateSubDirectory(containerDirectory.getParent(), "dao");
 
         ClassCreator.of(project).init(entityClasses.getEntityName() + "Dao",
-                "public interface " + entityClasses.getEntityName() + "Dao {" +
+                "@Mapper public interface " + entityClasses.getEntityName() + "Dao {" +
                         "List<" + entityClasses.getEntityClassName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
                         "}")
                 .importClass("java.util.List")
+                .importClass("org.apache.ibatis.annotations.Mapper")
                 .addTo(daoDirectory)
                 .and(daoClass -> {
                     psiUtils.importClass(daoClass, entityClasses.getQueryClass(), entityClasses.getEntityClass());
@@ -290,7 +291,7 @@ public class GeneratorAction extends AnAction {
                     .append("select ")
                     .append(columns.toString())
                     .append(" from ")
-                    .append(tableName)
+                    .append(tableName.replaceAll("\",", ""))
                     .append(" t1 \n</sql>");
 
             content.append("<select id=\"query\" parameterType=\"")
@@ -534,7 +535,7 @@ public class GeneratorAction extends AnAction {
 
         String entityName = entityClasses.getEntityName();
         String controllerPath = Arrays.stream(StringUtils.splitByCharacterTypeCamelCase(entityName))
-                .reduce((s1, s2) -> s1.toLowerCase().concat("_").concat(s2.toLowerCase())).orElse("");
+                .reduce((s1, s2) -> s1.toLowerCase().concat("-").concat(s2.toLowerCase())).orElse("");
 
         StringBuilder content = new StringBuilder();
         content.append("@RequestMapping(\"")

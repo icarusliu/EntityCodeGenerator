@@ -1,55 +1,19 @@
 <idea-plugin>
-  <id>com.liuqi.tool.idea.plugin</id>
+  <id>com.liuqi.tool.idea.plugins</id>
   <name>EntityCodeGenerator</name>
-  <version>1.0</version>
+  <version>1.2</version>
   <vendor email="icarusliu@hotmail.com" url="cn.liumoran">刘奇</vendor>
 
   <description>
-    <![CDATA[
-      <p>JPA实体类代码生成器，根据Entity自动生成DTO、Repository、Mapper、Service等基础代码;
-    其中Mapper指的是Map struct 方式生成的Entity与DTO类转换器。
-    当前编辑器中的对象需要是包含有Entity注解的实体类时才会生效，如果当前编辑器中打开的对象不满足条件则不会有任何动作。
-    当前版本，自动生成的类包含以下几个：(假设Entity所在目录为当前目录）</p>
-<ul>
-    <li>*Repository: 数据库操作类；
-        <ul>
-            <li>生成目录：../repository</li>
-            <li>生成说明：如果项目中包含有BaseRepository类，那么新创建的Repository对象将会继承自该对象，否则，会自动生成一个BaseRepository并继承自该类；其中
-                BaseRepository继承了JpaRepository与JpaSpecificationExecutor两个接口</li>
-        </ul>
-    </li>
-    <li>*DTO：数据传输对象;
-        <ul>
-            <li>生成目录：../../service/dto</li>
-            <li>生成说明：根据Entity中的属性自动生成DTO的属性及其Getter与Setter方法，如果Entity中某个属性中包含有Column注解，并且注解中包含有Not Null或者Varchar(255)等限制，
-                则生成的DTO对象会自动添加NotBlank、NotNull、Length等校验注解。另外，如果项目中包含有AbstractBaseDTO类，那么生成的DTO对象将会继承自该类，否则不会继承任何类；</li>
-        </ul>
-    </li>
-    <li>*Mapper: DTO与Entity转换类
-        <ul>
-            <li>生成目录：../../service/mapper</li>
-            <li>生成说明：如果项目中包含有EntityMapper类，那么新创建的转换类将继承自该类，否则创建一个EntityMapper类并继承它来生成新的转换类；</li>
-        </ul>
-    </li>
-    <li>*Service: 实体类操作接口
-        <ul>
-            <li>生成目录：../../service</li>
-            <li>生成说明：如果项目中没有则生成EntityService接口，新创建的实体类操作接口将继承原本存在或者新创建的EntityService接口；生成的接口中包含有save/delete/findAll/
-                findOne等常用接口</li>
-        </ul>
-    </li>
-    <li>*ServiceImpl: 实体类操作接口实现类
-        <ul>
-            <li>生成目录：../../service/impl</li>
-            <li>生成说明：如果项目中有AbstractBaseEntityService，那么新创建的实体类将会继承自该类，否则不会继承该类。</li>
-        </ul>
-    </li>
-</ul>
-    ]]>
+    This plugin is for generating codes for entities. With a bean defined with Entity annotation, use it the following classes such as Dao/Repository/DTO/Service/ServiceImpl/Query/
+    Controller/Mapper would be created automatically. Basic functions like add/update/delete/simple query would be contained in these auto generated classes.
+    Additionally, a mybatis mapping file would be created in the directory of resources/mappers, with elements of 'resultMap' and other useful sqls.
+    After installation, a new menu item would be created in the 'Window' menu. You must promise that the class opened in the editor with the annotation of Entity,
+    or nothing would happen after you click the menu item.
   </description>
 
   <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/build_number_ranges.html for description -->
-  <idea-version since-build="173.0"/>
+  <idea-version since-build="191.0"/>
 
   <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
        on how to target different products -->

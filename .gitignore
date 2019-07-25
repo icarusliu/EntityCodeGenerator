@@ -2,3 +2,4 @@
 .idea/workspace.xml
 *.iml
 *.jar
+out/
