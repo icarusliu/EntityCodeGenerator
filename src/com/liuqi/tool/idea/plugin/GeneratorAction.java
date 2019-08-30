@@ -195,6 +195,7 @@ public class GeneratorAction extends AnAction {
 
     /**
      * 添加Mybatis Dao
+     *
      * @param entityClasses 类集
      */
     private void addDao(EntityClasses entityClasses) {
@@ -204,9 +205,11 @@ public class GeneratorAction extends AnAction {
         ClassCreator.of(project).init(entityClasses.getEntityName() + "Dao",
                 "@Mapper public interface " + entityClasses.getEntityName() + "Dao {" +
                         "List<" + entityClasses.getEntityClassName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
+                        "void batchAdd(@Param(\"list\") List<" + entityClasses.getEntityClassName() + "> dataList);" +
                         "}")
                 .importClass("java.util.List")
                 .importClass("org.apache.ibatis.annotations.Mapper")
+                .importClass("org.apache.ibatis.annotations.Param")
                 .addTo(daoDirectory)
                 .and(daoClass -> {
                     psiUtils.importClass(daoClass, entityClasses.getQueryClass(), entityClasses.getEntityClass());
@@ -216,6 +219,7 @@ public class GeneratorAction extends AnAction {
 
     /**
      * 创建MyBatis映射文件
+     *
      * @param entityClasses 实体相关类集合
      */
     private void createDaoMappingFile(EntityClasses entityClasses) {
@@ -252,6 +256,8 @@ public class GeneratorAction extends AnAction {
             PsiClass entityClass = entityClasses.getEntityClass();
 
             StringBuilder columns = new StringBuilder();
+            StringBuilder insertColumns = new StringBuilder();
+            StringBuilder insertFields = new StringBuilder();
             for (PsiField field : entityClass.getFields()) {
                 String fieldName = field.getName();
                 String str = Arrays.stream(Objects.requireNonNull(StringUtils.splitByCharacterTypeCamelCase(fieldName)))
@@ -271,8 +277,12 @@ public class GeneratorAction extends AnAction {
 
                 if (0 == columns.length()) {
                     columns.append("t1.").append(str);
+                    insertColumns.append(str);
+                    insertFields.append("#{item.").append(fieldName).append("}");
                 } else {
                     columns.append(",").append("t1.").append(str);
+                    insertColumns.append(",").append(str);
+                    insertFields.append(",#{item.").append(fieldName).append("}");
                 }
             }
 
@@ -286,12 +296,14 @@ public class GeneratorAction extends AnAction {
                 }
             }
 
+            tableName = tableName.replaceAll("\"", "");
+
             content.append("</resultMap>")
                     .append("<sql id=\"columns\">\n")
                     .append("select ")
                     .append(columns.toString())
                     .append(" from ")
-                    .append(tableName.replaceAll("\",", ""))
+                    .append(tableName)
                     .append(" t1 \n</sql>");
 
             content.append("<select id=\"query\" parameterType=\"")
@@ -299,6 +311,21 @@ public class GeneratorAction extends AnAction {
                     .append("\" resultMap=\"resultMap\">")
                     .append("<include refid=\"columns\"/>")
                     .append("</select>");
+
+            // 增加批量新增语句
+            content.append("<insert id=\"batchAdd\" parameterType=\"")
+                    .append(psiUtils.getPackageAndName(entityClasses.getDtoClass()))
+                    .append("\">")
+                    .append("insert into ")
+                    .append(tableName)
+                    .append("(")
+                    .append(insertColumns.toString())
+                    .append(") values <foreach collection=\"list\" item=\"item\" open=\"\" close=\"\" separator=\",\">")
+                    .append("(")
+                    .append(insertFields.toString())
+                    .append(")")
+                    .append("</foreach></insert>")
+            ;
 
             content.append("</mapper>");
 
@@ -335,6 +362,7 @@ public class GeneratorAction extends AnAction {
 
     /**
      * 添加PageData对象
+     *
      * @param entityClasses 实体相关类
      */
     private void addPageData(EntityClasses entityClasses) {
@@ -448,13 +476,18 @@ public class GeneratorAction extends AnAction {
                 .append("@Resource private ").append(entityClasses.getRepositoryClass().getName()).append(" repository; ")
                 .append("@Resource private ").append(entityClasses.getDaoClass().getName()).append(" dao; ")
                 .append("@Override public void save(").append(entityClasses.getDtoClass().getName()).append(" dto) { repository.save(mapper.toEntity(dto));}")
-                .append("@Override public void save(List<").append(entityClasses.getDtoClass().getName()).append("> dtos) { repository.").append(saveAllMethod).append("(mapper.toEntity(dtos)); }")
+                .append("@Override public void save(List<").append(entityClasses.getDtoClass().getName()).append("> dtos) { repository.").append(
+                saveAllMethod).append("(mapper.toEntity(dtos)); }")
                 .append("@Override public void delete(Long id) { repository.delete(id); }")
-                .append("@Override public Optional<").append(entityClasses.getDtoClass().getName()).append("> findOne(Long id) { return Optional.ofNullable(mapper.toDto(repository.findOne(id))); }")
-                .append("@Override public List<").append(entityClasses.getDtoClass().getName()).append("> findAll() { return mapper.toDto(repository.findAll()); }")
-                .append("@Override public PageData<").append(entityClasses.getDtoClass().getName()).append("> pageQuery(PageQuery<").append(entityClasses.getQueryClass().getName()).append("> pageQuery) {")
+                .append("@Override public Optional<").append(entityClasses.getDtoClass().getName()).append(
+                "> findOne(Long id) { return Optional.ofNullable(mapper.toDto(repository.findOne(id))); }")
+                .append("@Override public List<").append(entityClasses.getDtoClass().getName()).append(
+                "> findAll() { return mapper.toDto(repository.findAll()); }")
+                .append("@Override public PageData<").append(entityClasses.getDtoClass().getName()).append("> pageQuery(PageQuery<").append(
+                entityClasses.getQueryClass().getName()).append("> pageQuery) {")
                 .append("PageHelper.startPage(pageQuery.getPageNo(), pageQuery.getPageSize()); ")
-                .append("PageInfo<").append(entityClasses.getDtoClass().getName()).append("> pageInfo = new PageInfo<>(mapper.toDto(dao.query(pageQuery.getQuery())));")
+                .append("PageInfo<").append(entityClasses.getDtoClass().getName()).append(
+                "> pageInfo = new PageInfo<>(mapper.toDto(dao.query(pageQuery.getQuery())));")
                 .append("return PageData.of((int)pageInfo.getTotal(), pageInfo.getList()); }")
                 .append("}");
 
@@ -481,6 +514,7 @@ public class GeneratorAction extends AnAction {
 
     /**
      * 创建控制器
+     *
      * @param entityClasses 相关类
      */
     private void createController(EntityClasses entityClasses) {
@@ -536,6 +570,7 @@ public class GeneratorAction extends AnAction {
         String entityName = entityClasses.getEntityName();
         String controllerPath = Arrays.stream(StringUtils.splitByCharacterTypeCamelCase(entityName))
                 .reduce((s1, s2) -> s1.toLowerCase().concat("-").concat(s2.toLowerCase())).orElse("");
+        controllerPath = controllerPath.substring(0, 1).toLowerCase() + controllerPath.substring(1);
 
         StringBuilder content = new StringBuilder();
         content.append("@RequestMapping(\"")
@@ -568,12 +603,16 @@ public class GeneratorAction extends AnAction {
                 .append(entityFieldName)
                 .append("Service; ")
                 .append("@ApiOperation(\"保存\") @PostMapping(\"/save\")")
-                .append("public void save(@RequestBody  ") .append(entityClasses.getDtoClass().getName()) .append(" ") .append(entityFieldName) .append(") { ")
-                .append(entityFieldName) .append("Service.save(") .append(entityFieldName) .append("); }")
-                .append("@ApiOperation(\"根据主键删除\")  @DeleteMapping(\"/delete/{id}\") public void delete(@PathVariable(\"id\") Long id) {").append(entityFieldName).append("Service.delete(id);}")
-                .append("@ApiOperation(\"查找所有数据\") @GetMapping(\"/list\") public List<").append(entityClasses.getDtoClass().getName()).append("> list() { return ").append(entityFieldName).append("Service.findAll(); }")
-                .append("@ApiOperation(\"分页查询\") @PostMapping(\"/page-query\") public PageData<").append(entityClasses.getDtoClass().getName()).append("> pageQuery(@RequestBody PageQuery<")
-                    .append(entityClasses.getQueryClass().getName()).append("> pageQuery) { return ").append(entityFieldName).append("Service.pageQuery(pageQuery);}")
+                .append("public void save(@RequestBody  ").append(entityClasses.getDtoClass().getName()).append(" ").append(entityFieldName).append(") { ")
+                .append(entityFieldName).append("Service.save(").append(entityFieldName).append("); }")
+                .append("@ApiOperation(\"根据主键删除\")  @DeleteMapping(\"/delete/{id}\") public void delete(@PathVariable(\"id\") Long id) {").append(
+                entityFieldName).append("Service.delete(id);}")
+                .append("@ApiOperation(\"查找所有数据\") @GetMapping(\"/list\") public List<").append(entityClasses.getDtoClass().getName()).append(
+                "> list() { return ").append(entityFieldName).append("Service.findAll(); }")
+                .append("@ApiOperation(\"分页查询\") @PostMapping(\"/page-query\") public PageData<").append(entityClasses.getDtoClass().getName()).append(
+                "> pageQuery(@RequestBody PageQuery<")
+                .append(entityClasses.getQueryClass().getName()).append("> pageQuery) { return ").append(entityFieldName).append(
+                "Service.pageQuery(pageQuery);}")
                 .append("}");
 
         // 在controller目录下创建Controller
@@ -612,7 +651,8 @@ public class GeneratorAction extends AnAction {
 
         String repositoryName = entityName.replace("Entity", "").concat("Repository");
         getBaseRepositoryClass(repositoryDirectory, baseRepositoryClass ->
-                ClassCreator.of(project).init(repositoryName, "public interface " + repositoryName + " extends BaseRepository<" + entityClasses.getEntityClassName() + "> {}")
+                ClassCreator.of(project).init(repositoryName,
+                        "public interface " + repositoryName + " extends BaseRepository<" + entityClasses.getEntityClassName() + "> {}")
                         .importClass(entityClasses.getEntityClass())
                         .importClass(baseRepositoryClass)
                         .addTo(repositoryDirectory)
@@ -624,7 +664,9 @@ public class GeneratorAction extends AnAction {
      *
      * @return 获取或创建的BaseRepository
      */
-    private void getBaseRepositoryClass(PsiDirectory repositoryDiresctory, Consumer<PsiClass> consumer) {
+    private void getBaseRepositoryClass(
+            PsiDirectory repositoryDiresctory,
+            Consumer<PsiClass> consumer) {
         // 获取BaseRepository，如果BaseRepository为空，则创建一个BaseRepository
         Optional<PsiClass> baseRepositoryClassOptional = psiUtils.findClass("BaseRepository");
         if (baseRepositoryClassOptional.isPresent()) {
@@ -783,6 +825,6 @@ public class GeneratorAction extends AnAction {
     }
 
     public static void main(String[] args) {
-        System.out.println(Optional.ofNullable("test").map(t -> null).orElse("aaa"));
+        System.out.println("test\"".replace("\"", ""));
     }
 }

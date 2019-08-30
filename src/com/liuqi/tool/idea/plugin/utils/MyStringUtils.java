@@ -1,6 +1,6 @@
 package com.liuqi.tool.idea.plugin.utils;
 
-import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang.StringUtils;
 
 /**
  * 

@@ -1,7 +1,7 @@
 <idea-plugin>
   <id>com.liuqi.tool.idea.plugins</id>
   <name>EntityCodeGenerator</name>
-  <version>1.2</version>
+  <version>1.3</version>
   <vendor email="icarusliu@hotmail.com" url="cn.liumoran">刘奇</vendor>
 
   <description>
@@ -20,6 +20,7 @@
   <!-- uncomment to enable plugin in all products
   <depends>com.intellij.modules.lang</depends>
   -->
+  <depends>com.intellij.modules.java</depends>
 
   <extensions defaultExtensionNs="com.intellij">
     <!-- Add your extensions here -->
