@@ -1,11 +1,16 @@
 package com.liuqi.tool.idea.plugin.utils;
 
+import com.intellij.lang.jvm.annotation.JvmAnnotationAttribute;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.intellij.psi.codeStyle.CodeStyleManager;
+import com.intellij.psi.codeStyle.JavaCodeStyleManager;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.PsiShortNamesCache;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.java.generate.element.ElementFactory;
 
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 
@@ -53,6 +58,39 @@ public class PsiUtils {
 
     public String getPackageAndName(PsiClass psiClass) {
         return ((PsiJavaFile)psiClass.getContainingFile()).getPackageName().concat(".").concat(psiClass.getName());
+    }
+
+    public PsiAnnotation addAnnotation(PsiClass psiClass, String annotation) {
+        PsiAnnotation psiAnnotation = Objects.requireNonNull(psiClass.getModifierList()).addAnnotation(annotation);
+        JavaCodeStyleManager.getInstance(project).shortenClassReferences(psiAnnotation);
+        return psiAnnotation;
+    }
+
+    public PsiAnnotation addAnnotation(PsiField field, String annotation) {
+        PsiAnnotation psiAnnotation = field.getModifierList().addAnnotation(annotation);
+        JavaCodeStyleManager.getInstance(project).shortenClassReferences(psiAnnotation);
+        return psiAnnotation;
+    }
+
+    public void addAnnotationFromStrAfter(PsiClass psiElement, String content, PsiElement posElement) {
+        PsiAnnotation psiAnnotation = PsiElementFactory.getInstance(project).createAnnotationFromText(content, null);
+        PsiModifierList psiModifierList = psiElement.getModifierList();
+        psiModifierList.addAfter(psiAnnotation, posElement);
+        JavaCodeStyleManager.getInstance(project).shortenClassReferences(psiAnnotation);
+    }
+
+    public void addAnnotationFromStrAfter(PsiField psiElement, String content, PsiElement posElement) {
+        PsiAnnotation psiAnnotation = PsiElementFactory.getInstance(project).createAnnotationFromText(content, null);
+        PsiModifierList psiModifierList = psiElement.getModifierList();
+        psiModifierList.addAfter(psiAnnotation, posElement);
+        JavaCodeStyleManager.getInstance(project).shortenClassReferences(psiAnnotation);
+    }
+
+    public void addAnnotationFromStrFirst(PsiField psiElement, String content) {
+        PsiAnnotation psiAnnotation = PsiElementFactory.getInstance(project).createAnnotationFromText(content, null);
+        PsiModifierList psiModifierList = psiElement.getModifierList();
+        psiModifierList.addBefore(psiAnnotation, psiModifierList.getFirstChild());
+        JavaCodeStyleManager.getInstance(project).shortenClassReferences(psiAnnotation);
     }
 
     /**
@@ -114,5 +152,75 @@ public class PsiUtils {
      */
     public PsiDirectory getOrCreateSubDirectory(PsiDirectory parentDirectory, String subDirectoryName) {
         return Optional.ofNullable(parentDirectory.findSubdirectory(subDirectoryName)).orElseGet(() -> parentDirectory.createSubdirectory(subDirectoryName));
+    }
+
+    /**
+     * 为字段增加Setter与Getter方法
+     */
+    public void addGetterAndSetterMethods(PsiClass aClass) {
+        PsiElementFactory elementFactory = PsiElementFactory.SERVICE.getInstance(project);
+        for (PsiField field: aClass.getFields()) {
+            String name = field.getName();
+            PsiType type = field.getType();
+
+            PsiMethod builderSetter = elementFactory.createMethodFromText(createBuilderSetter(aClass.getName(), name, type.getCanonicalText()), field);
+            PsiMethod normalSetter = elementFactory.createMethodFromText(createSetter(name, type.getCanonicalText()), field);
+            PsiMethod getter = elementFactory.createMethodFromText(createGetter(name, type.getCanonicalText()), field);
+
+            if (0 == aClass.findMethodsByName(builderSetter.getName()).length) {
+                aClass.add(builderSetter);
+            }
+
+            if (0 == aClass.findMethodsByName(normalSetter.getName()).length) {
+                aClass.add(normalSetter);
+            }
+
+            if (0 == aClass.findMethodsByName(getter.getName()).length) {
+                aClass.add(getter);
+            }
+        }
+    }
+
+    private String createBuilderSetter(String className, String name, String type) {
+        return "public " +
+                className +
+                " " +
+                name +
+                "(" +
+                type +
+                " " +
+                name +
+                ") {" +
+                "this." +
+                name +
+                " = " +
+                name +
+                ";" +
+                "return this;}";
+    }
+
+    private String createSetter(@NotNull String name, String type) {
+        return "public void set" +
+                name.substring(0, 1).toUpperCase() + name.substring(1) +
+                "(" +
+                type +
+                " " +
+                name +
+                ") {" +
+                "this." +
+                name +
+                " = " +
+                name +
+                ";}";
+    }
+
+    private String createGetter(String name, String type) {
+        return "public " +
+                type +
+                " get" +
+                name.substring(0, 1).toUpperCase() + name.substring(1) +
+                "() {return this." +
+                name +
+                ";}";
     }
 }

@@ -28,7 +28,11 @@
 
   <actions>
     <!-- Add your actions here -->
-    <action class="com.liuqi.tool.idea.plugin.GeneratorAction" id="codeGenerator" text="Entity Code Generator" keymap="">
+    <action class="com.liuqi.tool.idea.plugin.GeneratorAction" id="codeGenerator" text="Entity Code Generator">
+      <add-to-group group-id="WindowMenu"/>
+    </action>
+
+    <action class="com.liuqi.tool.idea.plugin.EntityAnnotationGeneratorAction" id="entityAnnotationGenerator" text="Entity Annotation Generator">
       <add-to-group group-id="WindowMenu"/>
     </action>
   </actions>

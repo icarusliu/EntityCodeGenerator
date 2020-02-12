@@ -5,7 +5,6 @@ import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.liuqi.tool.idea.plugin.utils.PsiUtils;
 import org.apache.commons.lang.StringUtils;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -17,7 +16,7 @@ import java.util.function.Supplier;
  * @author  LiuQi 2019/7/12-10:28
  * @version V1.0
  **/
-public class ClassCreator {
+class ClassCreator {
     private PsiJavaFile javaFile;
     private Project project;
     private PsiUtils psiUtils;
@@ -27,11 +26,11 @@ public class ClassCreator {
         this.psiUtils = PsiUtils.of(project);
     }
 
-    public static ClassCreator of(Project project) {
+    static ClassCreator of(Project project) {
         return new ClassCreator(project);
     }
 
-    public ClassCreator init(String name, String content) {
+    ClassCreator init(String name, String content) {
         javaFile = (PsiJavaFile) PsiFileFactory.getInstance(project).createFileFromText(name + ".java", JavaFileType.INSTANCE,
                 content);
         return this;
@@ -78,6 +77,13 @@ public class ClassCreator {
         })).getClasses()[0]);
     }
 
+    ClassCreator addGetterAndSetterMethods() {
+        PsiClass aClass = javaFile.getClasses()[0];
+        psiUtils.addGetterAndSetterMethods(aClass);
+
+        return this;
+    }
+
     ClassCreator copyFields(PsiClass srcClass) {
         PsiClass aClass = javaFile.getClasses()[0];
         PsiElementFactory elementFactory = PsiElementFactory.SERVICE.getInstance(project);
@@ -109,7 +115,7 @@ public class ClassCreator {
                             if (-1 != idx) {
                                 String lengthStr = str.substring(0, idx).replaceAll("\"", "");
                                 if (StringUtils.isNotBlank(lengthStr)) {
-                                    int length = Integer.valueOf(lengthStr);
+                                    int length = Integer.parseInt(lengthStr);
                                     annotationStringBuilder.append("@Length(max = ").append(length).append(") ");
                                     importClass("org.hibernate.validator.constraints.Length");
                                 }
@@ -134,67 +140,10 @@ public class ClassCreator {
             aClass.add(cField);
 
             // 针对每一个属性生成三个方法
-            PsiMethod builderSetter = elementFactory.createMethodFromText(createBuilderSetter(aClass.getName(), name, type.getCanonicalText()), field);
-            PsiMethod normalSetter = elementFactory.createMethodFromText(createSetter(name, type.getCanonicalText()), field);
-            PsiMethod getter = elementFactory.createMethodFromText(createGetter(name, type.getCanonicalText()), field);
-
-            if (0 == aClass.findMethodsByName(builderSetter.getName()).length) {
-                aClass.add(builderSetter);
-            }
-
-            if (0 == aClass.findMethodsByName(normalSetter.getName()).length) {
-                aClass.add(normalSetter);
-            }
-
-            if (0 == aClass.findMethodsByName(getter.getName()).length) {
-                aClass.add(getter);
-            }
+            psiUtils.addGetterAndSetterMethods(aClass);
         }
 
         return this;
-    }
-
-    private String createBuilderSetter(String className, String name, String type) {
-        return "public " +
-                className +
-                " " +
-                name +
-                "(" +
-                type +
-                " " +
-                name +
-                ") {" +
-                "this." +
-                name +
-                " = " +
-                name +
-                ";" +
-                "return this;}";
-    }
-
-    private String createSetter(@NotNull String name, String type) {
-        return "public void set" +
-                name.substring(0, 1).toUpperCase() + name.substring(1) +
-                "(" +
-                type +
-                " " +
-                name +
-                ") {" +
-                "this." +
-                name +
-                " = " +
-                name +
-                ";}";
-    }
-
-    private String createGetter(String name, String type) {
-        return "public " +
-                type +
-                " get" +
-                name.substring(0, 1).toUpperCase() + name.substring(1) +
-                "() {return this." +
-                name +
-                ";}";
     }
 
     public static class And {
@@ -204,7 +153,7 @@ public class ClassCreator {
             this.psiClass = psiClass;
         }
 
-        public void and(Consumer<PsiClass> callback) {
+        void and(Consumer<PsiClass> callback) {
             callback.accept(psiClass);
         }
     }

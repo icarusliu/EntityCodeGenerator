@@ -2,13 +2,18 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e869b9a5-cc02-4297-a596-a5248c7c8750" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/EntityAnnotationGeneratorAction.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/MyAnAction.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/entityCodeGenerator.iml" beforeDir="false" afterPath="$PROJECT_DIR$/entityCodeGenerator.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/entityCodeGenerator.jar" beforeDir="false" afterPath="$PROJECT_DIR$/entityCodeGenerator.jar" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/out/production/entityCodeGenerator/META-INF/plugin.xml" beforeDir="false" afterPath="$PROJECT_DIR$/out/production/entityCodeGenerator/META-INF/plugin.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/resources/META-INF/plugin.xml" beforeDir="false" afterPath="$PROJECT_DIR$/resources/META-INF/plugin.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/ClassCreator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/ClassCreator.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/GeneratorAction.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/GeneratorAction.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/utils/MyStringUtils.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/utils/MyStringUtils.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/utils/PsiUtils.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/utils/PsiUtils.java" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -16,17 +21,32 @@
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Class" />
+      </list>
+    </option>
+  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="LogFilters">
+    <option name="FILTER_ERRORS" value="false" />
+    <option name="FILTER_WARNINGS" value="false" />
+    <option name="FILTER_INFO" value="true" />
+    <option name="FILTER_DEBUG" value="true" />
+    <option name="CUSTOM_FILTER" />
   </component>
   <component name="ProjectId" id="1Olv3dXN8JtetbzMpwAErlIRsVw" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="PropertiesComponent">
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
-    <property name="project.structure.last.edited" value="Project" />
+    <property name="project.structure.last.edited" value="Modules" />
     <property name="project.structure.proportion" value="0.15" />
     <property name="project.structure.side.proportion" value="0.30547264" />
+    <property name="settings.editor.selected.configurable" value="preferences.pluginManager" />
   </component>
   <component name="RunDashboard">
     <option name="ruleStates">
@@ -40,7 +60,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Application.GeneratorAction">
+  <component name="RunManager" selected="Plugin.Plugin">
     <configuration name="GeneratorAction" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
       <option name="MAIN_CLASS_NAME" value="com.liuqi.tool.idea.plugin.GeneratorAction" />
       <module name="entityCodeGenerator" />
@@ -72,6 +92,9 @@
       </list>
     </recent_temporary>
   </component>
+  <component name="SvnConfiguration">
+    <configuration />
+  </component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
       <changelist id="e869b9a5-cc02-4297-a596-a5248c7c8750" name="Default Changelist" comment="" />
@@ -94,5 +117,12 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="XDebuggerManager">
+    <watches-manager>
+      <configuration name="#org.jetbrains.idea.devkit.run.PluginConfigurationType">
+        <watch expression="psiType.getCanonicalText()" language="JAVA" />
+      </configuration>
+    </watches-manager>
   </component>
 </project>

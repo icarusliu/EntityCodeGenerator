@@ -1,70 +1,42 @@
 package com.liuqi.tool.idea.plugin;
 
 import com.intellij.lang.xml.XMLLanguage;
-import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
-import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.command.WriteCommandAction;
-import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.module.Module;
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.roots.FileIndexFacade;
 import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.file.PsiDirectoryFactory;
 import com.liuqi.tool.idea.plugin.utils.MyStringUtils;
-import com.liuqi.tool.idea.plugin.utils.PsiUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Consumer;
 
 /**
  * @author LiuQi 2019/7/11-10:50
  * @version V1.0
  **/
-public class GeneratorAction extends AnAction {
-    private Project project;
-    private PsiDirectory containerDirectory;
-    private PsiUtils psiUtils;
-    private Module module;
+public class GeneratorAction extends MyAnAction {
+    private Map<String, PsiDirectory> directoryMap = new HashMap<>(16);
 
     @Override
     public synchronized void actionPerformed(@NotNull AnActionEvent anActionEvent) {
-        project = anActionEvent.getProject();
-        psiUtils = PsiUtils.of(project);
-
-        Editor editor = anActionEvent.getData(CommonDataKeys.EDITOR);
-        if (null == editor) {
+        PsiClass aClass = this.getEditingClass(anActionEvent);
+        if (null == aClass) {
             return;
         }
 
-        PsiFile psiFile = PsiDocumentManager.getInstance(project).getPsiFile(editor.getDocument());
-        if (!(psiFile instanceof PsiJavaFile)) {
-            return;
-        }
-
-        PsiJavaFile javaFile = (PsiJavaFile) psiFile;
-        PsiClass[] classes = javaFile.getClasses();
-        if (0 == classes.length) {
-            return;
-        }
-
-        // 只有是Entity类才能起作用
-        PsiClass aClass = classes[0];
         if (null == aClass.getAnnotation("javax.persistence.Entity")) {
+            // 只处理被Entity注解的类
             return;
         }
 
-        containerDirectory = javaFile.getContainingDirectory();
-        module = FileIndexFacade.getInstance(project).getModuleForFile(psiFile.getVirtualFile());
+        // 加载所有目录
+        loadDirs();
 
         // 先创建Service目录
         EntityClasses entityClasses = new EntityClasses()
@@ -74,6 +46,34 @@ public class GeneratorAction extends AnAction {
         // 在它所在包的同级的repository中创建Repository
         WriteCommandAction.runWriteCommandAction(project, () ->
                 createRepository(entityClasses));
+    }
+
+    private void loadDirs() {
+        PsiDirectory rootDirectory = containerDirectory.getParentDirectory();
+        if (null == rootDirectory) {
+            rootDirectory = containerDirectory;
+        } else {
+            while (null != rootDirectory.getParent()) {
+                if (rootDirectory.getParent().getName().equals("src")) {
+                    break;
+                }
+
+                rootDirectory = rootDirectory.getParent();
+            }
+        }
+
+        loadDir(rootDirectory);
+    }
+
+    private void loadDir(PsiDirectory psiDirectory) {
+        directoryMap.put(psiDirectory.getName(), psiDirectory);
+        for (PsiDirectory subdirectory : psiDirectory.getSubdirectories()) {
+            loadDir(subdirectory);
+        }
+    }
+
+    private Optional<PsiDirectory> findDir(String dirName) {
+        return Optional.ofNullable(directoryMap.get(dirName));
     }
 
     /**
@@ -89,12 +89,17 @@ public class GeneratorAction extends AnAction {
         String entityName = className.replace("Entity", "");
 
         // 在service下创建dto目录
-        PsiDirectory dtoDirectory = psiUtils.getOrCreateSubDirectory(entityClasses.getServiceDirectory(), "dto");
+        PsiDirectory dtoDirectory = findDir("dto").orElseGet(() -> psiUtils.getOrCreateSubDirectory(entityClasses.getServiceDirectory(), "dto"));
 
         // 先检查是否存在AbstractBaseDTO对象，如果存在的话DTO对象需要继承自该对象
         Optional<PsiClass> abstractBaseDTOOptional = psiUtils.findClass("AbstractBaseDTO");
+
         String dtoContent = "public class " + entityName + "DTO";
-        if (abstractBaseDTOOptional.isPresent()) {
+        boolean extendFromBaseDTO = false;
+        for (PsiClassType extendsListType : entityClasses.getEntityClass().getExtendsListTypes()) {
+            extendFromBaseDTO = extendsListType.getName().contains("AbstractBaseEntity");
+        }
+        if (abstractBaseDTOOptional.isPresent() && extendFromBaseDTO) {
             // 存在时
             dtoContent += " extends AbstractBaseDTO";
         }
@@ -102,9 +107,10 @@ public class GeneratorAction extends AnAction {
         dtoContent += "{}";
 
         // 根据Entity对象创建DTO对象
+        boolean pExtendFromBaseDTO = extendFromBaseDTO;
         ClassCreator.of(project).init(entityName + "DTO", dtoContent)
                 .copyFields(entityClasses.getEntityClass())
-                .importClass("AbstractBaseDTO")
+                .importClassIf("AbstractBaseDTO", () -> pExtendFromBaseDTO)
                 .addTo(dtoDirectory)
                 .and(dtoClass -> createMapperClass(entityClasses.setDtoClass(dtoClass)));
     }
@@ -116,17 +122,21 @@ public class GeneratorAction extends AnAction {
      * @return 创建的目录
      */
     private PsiDirectory createServiceDirectory() {
-        PsiDirectory serviceDirectory;
-        if (null == containerDirectory.getParent()) {
-            serviceDirectory = psiUtils.getOrCreateSubDirectory(containerDirectory, "service");
-        } else {
-            if (null == containerDirectory.getParent().getParent()) {
-                serviceDirectory = psiUtils.getOrCreateSubDirectory(containerDirectory.getParent(), "service");
-            } else {
-                serviceDirectory = psiUtils.getOrCreateSubDirectory(containerDirectory.getParent().getParent(), "service");
-            }
-        }
-        return serviceDirectory;
+        return findDir("service")
+                .orElseGet(() -> {
+                    PsiDirectory serviceDirectory;
+
+                    if (null == containerDirectory.getParent()) {
+                        serviceDirectory = psiUtils.getOrCreateSubDirectory(containerDirectory, "service");
+                    } else {
+                        if (null == containerDirectory.getParent().getParent()) {
+                            serviceDirectory = psiUtils.getOrCreateSubDirectory(containerDirectory.getParent(), "service");
+                        } else {
+                            serviceDirectory = psiUtils.getOrCreateSubDirectory(containerDirectory.getParent().getParent(), "service");
+                        }
+                    }
+                    return serviceDirectory;
+                });
     }
 
     /**
@@ -136,7 +146,7 @@ public class GeneratorAction extends AnAction {
         String entityName = entityClasses.getEntityName();
 
         // 增加mapper对象
-        PsiDirectory mapperDirectory = psiUtils.getOrCreateSubDirectory(entityClasses.serviceDirectory, "mapper");
+        PsiDirectory mapperDirectory = findDir("mapper").orElseGet(() -> psiUtils.getOrCreateSubDirectory(entityClasses.serviceDirectory, "mapper"));
 
         // 先创建EntityMapper对象
         // 先检查EntityMapper是否存在
@@ -181,9 +191,11 @@ public class GeneratorAction extends AnAction {
      */
     private void addQuery(EntityClasses entityClasses) {
         // 先创建Query对象
-        PsiDirectory queryDirectory = psiUtils.getOrCreateSubDirectory(entityClasses.getServiceDirectory(), "query");
+        PsiDirectory queryDirectory = findDir("query")
+                .orElseGet(() -> psiUtils.getOrCreateSubDirectory(entityClasses.getServiceDirectory(), "query"));
         ClassCreator.of(project)
-                .init(entityClasses.getEntityName() + "Query", "public class " + entityClasses.getEntityName() + "Query {}")
+                .init(entityClasses.getEntityName() + "Query", "public class " + entityClasses.getEntityName() + "Query {private Integer page;  \nprivate Integer size;  }")
+                .addGetterAndSetterMethods()
                 .addTo(queryDirectory)
                 .and(queryClass -> {
                     entityClasses.setQueryClass(queryClass).setQueryDirectory(queryDirectory);
@@ -199,20 +211,20 @@ public class GeneratorAction extends AnAction {
      * @param entityClasses 类集
      */
     private void addDao(EntityClasses entityClasses) {
-        PsiDirectory daoDirectory = null == containerDirectory.getParent() ? containerDirectory :
-                psiUtils.getOrCreateSubDirectory(containerDirectory.getParent(), "dao");
+        PsiDirectory daoDirectory = findDir("dao").orElseGet(() -> null == containerDirectory.getParent() ? containerDirectory :
+                psiUtils.getOrCreateSubDirectory(containerDirectory.getParent(), "dao"));
 
         ClassCreator.of(project).init(entityClasses.getEntityName() + "Dao",
                 "@Mapper public interface " + entityClasses.getEntityName() + "Dao {" +
-                        "List<" + entityClasses.getEntityClassName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
-                        "void batchAdd(@Param(\"list\") List<" + entityClasses.getEntityClassName() + "> dataList);" +
+                        "List<" + entityClasses.getDtoClass().getName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
+                        "void batchAdd(@Param(\"list\") List<" + entityClasses.getDtoClass().getName() + "> dataList);" +
                         "}")
                 .importClass("java.util.List")
                 .importClass("org.apache.ibatis.annotations.Mapper")
                 .importClass("org.apache.ibatis.annotations.Param")
                 .addTo(daoDirectory)
                 .and(daoClass -> {
-                    psiUtils.importClass(daoClass, entityClasses.getQueryClass(), entityClasses.getEntityClass());
+                    psiUtils.importClass(daoClass, entityClasses.getQueryClass(), entityClasses.getDtoClass());
                     createDaoMappingFile(entityClasses.setDaoClass(daoClass));
                 });
     }
@@ -244,7 +256,7 @@ public class GeneratorAction extends AnAction {
         if (null == psiFile) {
 
             String daoPackage = ((PsiJavaFile) entityClasses.getDaoClass().getContainingFile()).getPackageName();
-            String entityPackage = ((PsiJavaFile) entityClasses.getEntityClass().getContainingFile()).getPackageName();
+            String dtoPackage = ((PsiJavaFile) entityClasses.getDtoClass().getContainingFile()).getPackageName();
             StringBuilder content = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n" +
                     "<!DOCTYPE mapper\n" +
                     "        PUBLIC \"-//mybatis.org//DTD Mapper 3.0//EN\"\n" +
@@ -252,7 +264,7 @@ public class GeneratorAction extends AnAction {
                     "<mapper namespace=\"" + daoPackage + "." + entityClasses.getDaoClass().getName() + "\">");
 
             // 增加resultMap映射
-            content.append("<resultMap id=\"resultMap\" type=\"").append(entityPackage).append(".").append(entityClasses.getEntityClassName()).append("\">");
+            content.append("<resultMap id=\"resultMap\" type=\"").append(dtoPackage).append(".").append(entityClasses.getDtoClass().getName()).append("\">");
             PsiClass entityClass = entityClasses.getEntityClass();
 
             StringBuilder columns = new StringBuilder();
@@ -300,9 +312,9 @@ public class GeneratorAction extends AnAction {
 
             content.append("</resultMap>")
                     .append("<sql id=\"columns\">\n")
-                    .append("select ")
+                    .append("select \n")
                     .append(columns.toString())
-                    .append(" from ")
+                    .append("\n from ")
                     .append(tableName)
                     .append(" t1 \n</sql>");
 
@@ -316,15 +328,15 @@ public class GeneratorAction extends AnAction {
             content.append("<insert id=\"batchAdd\" parameterType=\"")
                     .append(psiUtils.getPackageAndName(entityClasses.getDtoClass()))
                     .append("\">")
-                    .append("insert into ")
+                    .append("\ninsert into ")
                     .append(tableName)
                     .append("(")
                     .append(insertColumns.toString())
-                    .append(") values <foreach collection=\"list\" item=\"item\" open=\"\" close=\"\" separator=\",\">")
+                    .append(") values <foreach collection=\"list\" item=\"item\" open=\"\" close=\"\" separator=\",\">\n")
                     .append("(")
                     .append(insertFields.toString())
                     .append(")")
-                    .append("</foreach></insert>")
+                    .append("\n</foreach></insert>")
             ;
 
             content.append("</mapper>");
@@ -335,90 +347,7 @@ public class GeneratorAction extends AnAction {
             psiDirectory.add(psiFile);
         }
 
-        addPageQuery(entityClasses);
-    }
-
-    private void addPageQuery(EntityClasses entityClasses) {
-        // 先看PageQuery对象是否存在，不存在则先创建
-        Optional<PsiClass> pageQueryClassOptional = psiUtils.findClass("PageQuery");
-        if (!pageQueryClassOptional.isPresent()) {
-            ClassCreator.of(project)
-                    .init("PageQuery", "public class PageQuery<T> {" +
-                            "private int pageNo;  private int pageSize;  private T query; " +
-                            "public int getPageNo() { return this.pageNo; }" +
-                            "public PageQuery<T> setPageNo(int pageNo) { this.pageNo = pageNo; return this; }" +
-                            "public int getPageSize() { return this.pageSize; }" +
-                            "public PageQuery<T> setPageSize(int pageSize) { this.pageSize = pageSize; return this; }" +
-                            "public T getQuery() { return query; }" +
-                            "public PageQuery<T> setQuery(T t) { this.query = t; return this; }" +
-                            "}")
-                    .addTo(entityClasses.getQueryDirectory())
-                    .and(pageQueryClass -> addPageData(entityClasses.setPageQueryClass(pageQueryClass)));
-        } else {
-            entityClasses.setPageQueryClass(pageQueryClassOptional.get());
-            addPageData(entityClasses);
-        }
-    }
-
-    /**
-     * 添加PageData对象
-     *
-     * @param entityClasses 实体相关类
-     */
-    private void addPageData(EntityClasses entityClasses) {
-        Optional<PsiClass> pageDataClassOptional = psiUtils.findClass("PageData",
-                psiClass -> null != psiClass.findFieldByName("totalCount", false) &&
-                        null != psiClass.findFieldByName("data", false));
-        pageDataClassOptional.map(pageDataClass -> {
-            createService(entityClasses.setPageDataClass(pageDataClass));
-            return "";
-        }).orElseGet(() -> {
-            // PageData不存在时，在query目录下创建对象
-            ClassCreator.of(project)
-                    .init("PageData", "public class PageData<D> { private int totalCount;  private List<D> dataList;  " +
-                            "public int getTotalCount() {\n" +
-                            "        return totalCount;\n" +
-                            "    }" +
-                            "public static <T> PageData<T> of(int totalCount) {\n" +
-                            "        return new PageData<T>().setTotalCount(totalCount);\n" +
-                            "    }" +
-                            "public static <T> PageData<T> of(int totalCount, List<T> dataList) {\n" +
-                            "        return new PageData<T>().setTotalCount(totalCount).setData(dataList);\n" +
-                            "    }" +
-                            "public PageData<T> setTotalCount(int totalCount) {\n" +
-                            "        this.totalCount = totalCount;\n" +
-                            "        return this;\n" +
-                            "    }" +
-                            "public List<T> getData() {\n" +
-                            "        return Optional.ofNullable(data).orElse(new ArrayList<>(0));\n" +
-                            "    }" +
-                            " public PageData<T> setData(List<T> data) {\n" +
-                            "        this.data = data;\n" +
-                            "        return this;\n" +
-                            "    }" +
-                            " public <R> PageData<R> map(Function<T, R> function) {\n" +
-                            "        PageData<R> pageData = new PageData<>();\n" +
-                            "        pageData.setTotalCount(this.totalCount);\n" +
-                            "        if (null != data) {\n" +
-                            "            pageData.setData(data.stream().map(function).collect(Collectors.toList()));\n" +
-                            "        }\n" +
-                            "        return pageData;\n" +
-                            "    }" +
-                            "public PageData<T> peek(Consumer<T> consumer) {\n" +
-                            "        data.forEach(consumer);\n" +
-                            "        return this;\n" +
-                            "    }" +
-                            "}")
-                    .importClass("java.util.List")
-                    .importClass("java.util.Optional")
-                    .importClass("java.util.function.Consumer")
-                    .importClass("java.util.function.Function")
-                    .importClass("java.util.stream.Collectors")
-                    .addTo(entityClasses.queryDirectory)
-                    .and(pageDataClass -> createService(entityClasses.setPageDataClass(pageDataClass)));
-            return "";
-        });
-
+        createService(entityClasses);
     }
 
     private void createService(EntityClasses entityClasses) {
@@ -429,20 +358,21 @@ public class GeneratorAction extends AnAction {
                 serviceName +
                 "{" +
                 "void save(" + entityClasses.getDtoClass().getName() + " dto); " +
-                "void save(List<" + entityClasses.getDtoClass().getName() + "> dtos); " +
-                "void delete(Long id);" + "Optional<" + entityClasses.getDtoClass().getName() + "> findOne(Long id); " +
-                "List<" + entityClasses.getDtoClass().getName() + "> findAll(); " +
-                "PageData<" + entityClasses.getDtoClass().getName() + "> pageQuery(PageQuery<" + entityClasses.getQueryClass().getName() + "> pageQuery); " +
+                "\nvoid save(List<" + entityClasses.getDtoClass().getName() + "> dtos); " +
+                "\nvoid delete(Long id);" + "Optional<" + entityClasses.getDtoClass().getName() + "> findOne(Long id); " +
+                "\nList<" + entityClasses.getDtoClass().getName() + "> findAll(); " +
+                "\nList<" + entityClasses.getDtoClass().getName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
+                "\nPageInfo<" + entityClasses.getDtoClass().getName() + "> pageQuery(" + entityClasses.getQueryClass().getName() + " query); " +
                 "}";
         ClassCreator.of(project).init(serviceName, content)
                 .importClass(entityClasses.dtoClass)
                 .importClass("java.util.Optional")
                 .importClass("java.util.List")
-                .importClass("com.github.pagehelper.pageInfo")
+                .importClass("com.github.pagehelper.PageInfo")
                 .addTo(entityClasses.serviceDirectory)
                 .and(serviceClass -> {
                     psiUtils.importClass(serviceClass, entityClasses.getQueryClass());
-                    psiUtils.importClass(serviceClass, entityClasses.getPageQueryClass(), entityClasses.getQueryClass(), entityClasses.getPageDataClass());
+                    psiUtils.importClass(serviceClass, entityClasses.getQueryClass());
                     createServiceImpl(entityClasses.setServiceClass(serviceClass));
                 });
     }
@@ -460,7 +390,7 @@ public class GeneratorAction extends AnAction {
         // 增加接口服务实现
         PsiDirectory serviceImplDirectory = psiUtils.getOrCreateSubDirectory(entityClasses.getServiceDirectory(), "impl");
 
-        StringBuilder content = new StringBuilder("@Service @Transactional public class ")
+        StringBuilder content = new StringBuilder("@Service public class ")
                 .append(serviceName)
                 .append("Impl ")
                 .append(" implements ").append(entityClasses.getServiceClass().getName())
@@ -472,23 +402,25 @@ public class GeneratorAction extends AnAction {
             saveAllMethod = "saveAll";
         }
 
-        content.append("@Resource private ").append(entityClasses.getMapperClass().getName()).append(" mapper; ")
-                .append("@Resource private ").append(entityClasses.getRepositoryClass().getName()).append(" repository; ")
-                .append("@Resource private ").append(entityClasses.getDaoClass().getName()).append(" dao; ")
-                .append("@Override public void save(").append(entityClasses.getDtoClass().getName()).append(" dto) { repository.save(mapper.toEntity(dto));}")
-                .append("@Override public void save(List<").append(entityClasses.getDtoClass().getName()).append("> dtos) { repository.").append(
+        String daoFieldName = StringUtils.uncapitalize(entityClasses.getDaoClass().getName());
+
+        content.append("@Resource private ").append(entityClasses.getMapperClass().getName()).append(" mapper; \n")
+                .append("\n@Resource private ").append(entityClasses.getRepositoryClass().getName()).append(" repository; \n")
+                .append("\n@Resource private ").append(entityClasses.getDaoClass().getName()).append(" ").append(daoFieldName).append("; \n")
+                .append("\n@Override @Transactional public void save(").append(entityClasses.getDtoClass().getName()).append(" dto) { repository.save(mapper.toEntity(dto));}")
+                .append("\n@Override @Transactional  public void save(List<").append(entityClasses.getDtoClass().getName()).append("> dtos) { repository.").append(
                 saveAllMethod).append("(mapper.toEntity(dtos)); }")
-                .append("@Override public void delete(Long id) { repository.delete(id); }")
-                .append("@Override public Optional<").append(entityClasses.getDtoClass().getName()).append(
+                .append("\n@Override @Transactional  public void delete(Long id) { repository.delete(id); }")
+                .append("\n@Override @Transactional(readOnly = true)  public Optional<").append(entityClasses.getDtoClass().getName()).append(
                 "> findOne(Long id) { return Optional.ofNullable(mapper.toDto(repository.findOne(id))); }")
-                .append("@Override public List<").append(entityClasses.getDtoClass().getName()).append(
+                .append("\n@Override @Transactional(readOnly = true) public List<").append(entityClasses.getDtoClass().getName()).append(
                 "> findAll() { return mapper.toDto(repository.findAll()); }")
-                .append("@Override public PageData<").append(entityClasses.getDtoClass().getName()).append("> pageQuery(PageQuery<").append(
-                entityClasses.getQueryClass().getName()).append("> pageQuery) {")
-                .append("PageHelper.startPage(pageQuery.getPageNo(), pageQuery.getPageSize()); ")
-                .append("PageInfo<").append(entityClasses.getDtoClass().getName()).append(
-                "> pageInfo = new PageInfo<>(mapper.toDto(dao.query(pageQuery.getQuery())));")
-                .append("return PageData.of((int)pageInfo.getTotal(), pageInfo.getList()); }")
+                .append("\n@Override @Transactional(readOnly = true) public List<").append(entityClasses.getDtoClass().getName()).append("> query(")
+                    .append(entityClasses.getQueryClass().getName()).append(" query) { return ").append(daoFieldName).append(".query(query);}")
+                .append("\n@Override @Transactional(readOnly = true) public PageInfo<").append(entityClasses.getDtoClass().getName()).append("> pageQuery(").append(
+                entityClasses.getQueryClass().getName()).append(" query) {")
+                .append("if (null != query.getSize() && null != query.getPage()) {PageHelper.startPage(query.getPage(), query.getSize()); }")
+                .append("return new PageInfo<>(").append(daoFieldName).append(".query(query));}")
                 .append("}");
 
         ClassCreator.of(project).init(serviceName + "Impl", content.toString())
@@ -505,7 +437,7 @@ public class GeneratorAction extends AnAction {
                 .and(implClass -> {
                     psiUtils.importClass(implClass, entityClasses.getServiceClass(),
                             entityClasses.getRepositoryClass(), entityClasses.getMapperClass(), entityClasses.getDtoClass(),
-                            entityClasses.getQueryClass(), entityClasses.getPageQueryClass(), entityClasses.getPageDataClass(),
+                            entityClasses.getQueryClass(),
                             entityClasses.getDaoClass());
 
                     createController(entityClasses);
@@ -531,7 +463,7 @@ public class GeneratorAction extends AnAction {
         }
 
         if (null == controllerDirectory) {
-            controllerDirectory = parentDirectory.createSubdirectory("controller");
+            controllerDirectory = findDir("controller").orElseGet(() -> parentDirectory.createSubdirectory("controller"));
         }
 
         // 先去目录下随便找一个Controller，获取其路径，判断其是否以api开头，从而决定当前路径是否要以api开头
@@ -609,10 +541,10 @@ public class GeneratorAction extends AnAction {
                 entityFieldName).append("Service.delete(id);}")
                 .append("@ApiOperation(\"查找所有数据\") @GetMapping(\"/list\") public List<").append(entityClasses.getDtoClass().getName()).append(
                 "> list() { return ").append(entityFieldName).append("Service.findAll(); }")
-                .append("@ApiOperation(\"分页查询\") @PostMapping(\"/page-query\") public PageData<").append(entityClasses.getDtoClass().getName()).append(
-                "> pageQuery(@RequestBody PageQuery<")
-                .append(entityClasses.getQueryClass().getName()).append("> pageQuery) { return ").append(entityFieldName).append(
-                "Service.pageQuery(pageQuery);}")
+                .append("@ApiOperation(\"分页查询\") @PostMapping(\"/page-query\") public PageInfo<").append(entityClasses.getDtoClass().getName()).append(
+                "> pageQuery(@RequestBody ")
+                .append(entityClasses.getQueryClass().getName()).append(" query) { return ").append(entityFieldName).append(
+                "Service.pageQuery(query);}")
                 .append("}");
 
         // 在controller目录下创建Controller
@@ -629,11 +561,12 @@ public class GeneratorAction extends AnAction {
                 .importClass("java.util.List")
                 .importClass("PathVariable")
                 .importClass("RequestParam")
+                .importClass("com.github.pagehelper.PageInfo")
                 .importClassIf(() -> pBaseClassOptional.get().getName(), pBaseClassOptional::isPresent)
                 .addTo(controllerDirectory)
                 .and(controllerClass -> {
                     psiUtils.importClass(controllerClass, entityClasses.getDtoClass(), entityClasses.getServiceClass(),
-                            entityClasses.getPageQueryClass(), entityClasses.getQueryClass(), entityClasses.getPageDataClass());
+                            entityClasses.getQueryClass());
                 });
     }
 
@@ -646,8 +579,8 @@ public class GeneratorAction extends AnAction {
         String entityName = entityClasses.getEntityName();
         assert entityName != null;
         PsiDirectory parentDirectory = containerDirectory.getParentDirectory();
-        PsiDirectory repositoryDirectory = null == parentDirectory ?
-                containerDirectory : psiUtils.getOrCreateSubDirectory(parentDirectory, "repository");
+        PsiDirectory repositoryDirectory = findDir("repository").orElseGet(() -> null == parentDirectory ?
+                containerDirectory : psiUtils.getOrCreateSubDirectory(parentDirectory, "repository"));
 
         String repositoryName = entityName.replace("Entity", "").concat("Repository");
         getBaseRepositoryClass(repositoryDirectory, baseRepositoryClass ->
@@ -695,8 +628,6 @@ public class GeneratorAction extends AnAction {
         private PsiDirectory queryDirectory;
         private PsiClass queryClass;
         private PsiClass daoClass;
-        private PsiClass pageQueryClass;
-        private PsiClass pageDataClass;
 
         PsiClass getEntityClass() {
             return entityClass;
@@ -778,49 +709,30 @@ public class GeneratorAction extends AnAction {
             return this.entityClass.getName();
         }
 
-        public PsiClass getQueryClass() {
+        PsiClass getQueryClass() {
             return queryClass;
         }
 
-        public EntityClasses setQueryClass(PsiClass queryClass) {
+        EntityClasses setQueryClass(PsiClass queryClass) {
             this.queryClass = queryClass;
             return this;
         }
 
-        public PsiClass getDaoClass() {
+        PsiClass getDaoClass() {
             return daoClass;
         }
 
-        public EntityClasses setDaoClass(PsiClass daoClass) {
+        EntityClasses setDaoClass(PsiClass daoClass) {
             this.daoClass = daoClass;
             return this;
         }
 
-        public PsiDirectory getQueryDirectory() {
+        PsiDirectory getQueryDirectory() {
             return queryDirectory;
         }
 
-        public EntityClasses setQueryDirectory(PsiDirectory queryDirectory) {
+        void setQueryDirectory(PsiDirectory queryDirectory) {
             this.queryDirectory = queryDirectory;
-            return this;
-        }
-
-        public PsiClass getPageQueryClass() {
-            return pageQueryClass;
-        }
-
-        public EntityClasses setPageQueryClass(PsiClass pageQueryClass) {
-            this.pageQueryClass = pageQueryClass;
-            return this;
-        }
-
-        public PsiClass getPageDataClass() {
-            return pageDataClass;
-        }
-
-        public EntityClasses setPageDataClass(PsiClass pageDataClass) {
-            this.pageDataClass = pageDataClass;
-            return this;
         }
     }
 
