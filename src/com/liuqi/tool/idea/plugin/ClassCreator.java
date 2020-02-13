@@ -141,6 +141,7 @@ class ClassCreator {
 
             // 针对每一个属性生成三个方法
             psiUtils.addGetterAndSetterMethods(aClass);
+            psiUtils.format(aClass);
         }
 
         return this;

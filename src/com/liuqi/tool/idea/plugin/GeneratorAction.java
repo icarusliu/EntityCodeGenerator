@@ -270,7 +270,7 @@ public class GeneratorAction extends MyAnAction {
             StringBuilder columns = new StringBuilder();
             StringBuilder insertColumns = new StringBuilder();
             StringBuilder insertFields = new StringBuilder();
-            for (PsiField field : entityClass.getFields()) {
+            for (PsiField field : entityClass.getAllFields()) {
                 String fieldName = field.getName();
                 String str = Arrays.stream(Objects.requireNonNull(StringUtils.splitByCharacterTypeCamelCase(fieldName)))
                         .reduce((s1, s2) -> s1.toLowerCase().concat("_").concat(s2.toLowerCase())).orElse("");

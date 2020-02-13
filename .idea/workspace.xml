@@ -2,20 +2,12 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e869b9a5-cc02-4297-a596-a5248c7c8750" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/EntityAnnotationGeneratorAction.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/MyAnAction.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/entityCodeGenerator.iml" beforeDir="false" afterPath="$PROJECT_DIR$/entityCodeGenerator.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/entityCodeGenerator.jar" beforeDir="false" afterPath="$PROJECT_DIR$/entityCodeGenerator.jar" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/out/production/entityCodeGenerator/META-INF/plugin.xml" beforeDir="false" afterPath="$PROJECT_DIR$/out/production/entityCodeGenerator/META-INF/plugin.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/resources/META-INF/plugin.xml" beforeDir="false" afterPath="$PROJECT_DIR$/resources/META-INF/plugin.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/ClassCreator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/ClassCreator.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/EntityAnnotationGeneratorAction.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/EntityAnnotationGeneratorAction.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/GeneratorAction.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/GeneratorAction.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/utils/MyStringUtils.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/utils/MyStringUtils.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/utils/PsiUtils.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/utils/PsiUtils.java" afterDir="false" />
     </list>
-    <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -40,6 +32,11 @@
   </component>
   <component name="ProjectId" id="1Olv3dXN8JtetbzMpwAErlIRsVw" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showExcludedFiles" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
   <component name="PropertiesComponent">
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
@@ -47,18 +44,6 @@
     <property name="project.structure.proportion" value="0.15" />
     <property name="project.structure.side.proportion" value="0.30547264" />
     <property name="settings.editor.selected.configurable" value="preferences.pluginManager" />
-  </component>
-  <component name="RunDashboard">
-    <option name="ruleStates">
-      <list>
-        <RuleState>
-          <option name="name" value="ConfigurationTypeDashboardGroupingRule" />
-        </RuleState>
-        <RuleState>
-          <option name="name" value="StatusDashboardGroupingRule" />
-        </RuleState>
-      </list>
-    </option>
   </component>
   <component name="RunManager" selected="Plugin.Plugin">
     <configuration name="GeneratorAction" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
@@ -117,6 +102,24 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="WindowStateProjectService">
+    <state x="620" y="260" key="FileChooserDialogImpl" timestamp="1581581680395">
+      <screen x="0" y="0" width="1680" height="1010" />
+    </state>
+    <state x="620" y="260" key="FileChooserDialogImpl/0.0.1680.1010@0.0.1680.1010" timestamp="1581581680395" />
+    <state x="341" y="147" key="SettingsEditor" timestamp="1581581682711">
+      <screen x="0" y="0" width="1680" height="1010" />
+    </state>
+    <state x="341" y="147" key="SettingsEditor/0.0.1680.1010@0.0.1680.1010" timestamp="1581581682711" />
+    <state x="561" y="246" width="582" height="524" key="StructurePopup" timestamp="1581580625901">
+      <screen x="0" y="0" width="1680" height="1010" />
+    </state>
+    <state x="561" y="246" width="582" height="524" key="StructurePopup/0.0.1680.1010@0.0.1680.1010" timestamp="1581580625901" />
+    <state x="516" y="238" width="647" height="534" key="find.popup" timestamp="1581580590609">
+      <screen x="0" y="0" width="1680" height="1010" />
+    </state>
+    <state x="516" y="238" width="647" height="534" key="find.popup/0.0.1680.1010@0.0.1680.1010" timestamp="1581580590609" />
   </component>
   <component name="XDebuggerManager">
     <watches-manager>

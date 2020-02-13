@@ -2,10 +2,7 @@ package com.liuqi.tool.idea.plugin;
 
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.command.WriteCommandAction;
-import com.intellij.psi.PsiAnnotation;
-import com.intellij.psi.PsiClass;
-import com.intellij.psi.PsiField;
-import com.intellij.psi.PsiType;
+import com.intellij.psi.*;
 import com.liuqi.tool.idea.plugin.utils.MyStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
@@ -37,7 +34,11 @@ public class EntityAnnotationGeneratorAction extends MyAnAction {
         String tableName = "t_" + MyStringUtils.toUnderLineStr(className);
         WriteCommandAction.runWriteCommandAction(project, () -> {
             PsiAnnotation psiAnnotation = psiUtils.addAnnotation(aClass, "javax.persistence.Entity");
-            psiUtils.addAnnotationFromStrAfter(aClass, "@javax.persistence.Table(name = \"" + tableName + "\")", psiAnnotation);
+            psiUtils.addAnnotationFromStrAfter(aClass, "@Table(name = \"" + tableName + "\")", psiAnnotation);
+            PsiJavaFile javaFile = (PsiJavaFile) aClass.getContainingFile();
+            psiUtils.findClass("javax.persistence.Table").ifPresent(javaFile::importClass);
+            psiUtils.findClass("javax.persistence.GeneratedValue").ifPresent(javaFile::importClass);
+            psiUtils.findClass("javax.persistence.GenerationType").ifPresent(javaFile::importClass);
 
             // 为每一个属性增加注解
             for (PsiField field : aClass.getFields()) {
@@ -67,8 +68,6 @@ public class EntityAnnotationGeneratorAction extends MyAnAction {
 
                 psiUtils.addAnnotationFromStrFirst(field, annotationField);
             }
-
-            psiUtils.findClass("javax.persistence.GenerationType").ifPresent(clazz -> psiUtils.importClass(aClass, clazz));
         });
     }
 }
