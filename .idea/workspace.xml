@@ -4,8 +4,6 @@
     <list default="true" id="e869b9a5-cc02-4297-a596-a5248c7c8750" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/entityCodeGenerator.jar" beforeDir="false" afterPath="$PROJECT_DIR$/entityCodeGenerator.jar" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/ClassCreator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/ClassCreator.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/EntityAnnotationGeneratorAction.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/EntityAnnotationGeneratorAction.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/GeneratorAction.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/GeneratorAction.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -104,22 +102,26 @@
     </option>
   </component>
   <component name="WindowStateProjectService">
-    <state x="620" y="260" key="FileChooserDialogImpl" timestamp="1581581680395">
+    <state x="645" y="189" key="#com.intellij.ide.util.MemberChooser" timestamp="1582444881750">
       <screen x="0" y="0" width="1680" height="1010" />
     </state>
-    <state x="620" y="260" key="FileChooserDialogImpl/0.0.1680.1010@0.0.1680.1010" timestamp="1581581680395" />
-    <state x="341" y="147" key="SettingsEditor" timestamp="1581581682711">
+    <state x="645" y="189" key="#com.intellij.ide.util.MemberChooser/0.0.1680.1010@0.0.1680.1010" timestamp="1582444881750" />
+    <state x="620" y="260" key="FileChooserDialogImpl" timestamp="1582447163213">
       <screen x="0" y="0" width="1680" height="1010" />
     </state>
-    <state x="341" y="147" key="SettingsEditor/0.0.1680.1010@0.0.1680.1010" timestamp="1581581682711" />
-    <state x="561" y="246" width="582" height="524" key="StructurePopup" timestamp="1581580625901">
+    <state x="620" y="260" key="FileChooserDialogImpl/0.0.1680.1010@0.0.1680.1010" timestamp="1582447163213" />
+    <state x="341" y="147" key="SettingsEditor" timestamp="1582447165841">
       <screen x="0" y="0" width="1680" height="1010" />
     </state>
-    <state x="561" y="246" width="582" height="524" key="StructurePopup/0.0.1680.1010@0.0.1680.1010" timestamp="1581580625901" />
-    <state x="516" y="238" width="647" height="534" key="find.popup" timestamp="1581580590609">
+    <state x="341" y="147" key="SettingsEditor/0.0.1680.1010@0.0.1680.1010" timestamp="1582447165841" />
+    <state x="561" y="246" width="582" height="524" key="StructurePopup" timestamp="1582446463322">
       <screen x="0" y="0" width="1680" height="1010" />
     </state>
-    <state x="516" y="238" width="647" height="534" key="find.popup/0.0.1680.1010@0.0.1680.1010" timestamp="1581580590609" />
+    <state x="561" y="246" width="582" height="524" key="StructurePopup/0.0.1680.1010@0.0.1680.1010" timestamp="1582446463322" />
+    <state x="516" y="238" width="647" height="534" key="find.popup" timestamp="1582447241665">
+      <screen x="0" y="0" width="1680" height="1010" />
+    </state>
+    <state x="516" y="238" width="647" height="534" key="find.popup/0.0.1680.1010@0.0.1680.1010" timestamp="1582447241665" />
   </component>
   <component name="XDebuggerManager">
     <watches-manager>
