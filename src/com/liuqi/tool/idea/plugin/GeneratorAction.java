@@ -249,7 +249,7 @@ public class GeneratorAction extends MyAnAction {
         ClassCreator.of(project).init(entityClasses.getEntityName() + "Dao",
                 "@Mapper public interface " + entityClasses.getEntityName() + "Dao {" +
                         "List<" + entityClasses.getDtoClass().getName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
-                        "void batchAdd(@Param(\"list\") List<" + entityClasses.getDtoClass().getName() + "> dataList);" +
+//                        "void batchAdd(@Param(\"list\") List<" + entityClasses.getDtoClass().getName() + "> dataList);" +
                         "}")
                 .importClass("java.util.List")
                 .importClass("org.apache.ibatis.annotations.Mapper")
@@ -357,19 +357,19 @@ public class GeneratorAction extends MyAnAction {
                     .append("</select>");
 
             // 增加批量新增语句
-            content.append("<insert id=\"batchAdd\" parameterType=\"")
-                    .append(psiUtils.getPackageAndName(entityClasses.getDtoClass()))
-                    .append("\">")
-                    .append("\ninsert into ")
-                    .append(tableName)
-                    .append("(")
-                    .append(insertColumns.toString())
-                    .append(") values <foreach collection=\"list\" item=\"item\" open=\"\" close=\"\" separator=\",\">\n")
-                    .append("(")
-                    .append(insertFields.toString())
-                    .append(")")
-                    .append("\n</foreach></insert>")
-            ;
+//            content.append("<insert id=\"batchAdd\" parameterType=\"")
+//                    .append(psiUtils.getPackageAndName(entityClasses.getDtoClass()))
+//                    .append("\">")
+//                    .append("\ninsert into ")
+//                    .append(tableName)
+//                    .append("(")
+//                    .append(insertColumns.toString())
+//                    .append(") values <foreach collection=\"list\" item=\"item\" open=\"\" close=\"\" separator=\",\">\n")
+//                    .append("(")
+//                    .append(insertFields.toString())
+//                    .append(")")
+//                    .append("\n</foreach></insert>")
+//            ;
 
             content.append("</mapper>");
 
@@ -384,39 +384,42 @@ public class GeneratorAction extends MyAnAction {
 
     private void createService(EntityClasses entityClasses) {
         // 增加服务接口
-        String serviceName = entityClasses.getEntityName().concat("Service");
+//        String serviceName = entityClasses.getEntityName().concat("Service");
+//
+//        String content = "public interface " +
+//                serviceName +
+//                "{" +
+//                "void save(" + entityClasses.getDtoClass().getName() + " dto); " +
+//                "\nvoid save(List<" + entityClasses.getDtoClass().getName() + "> dtos); " +
+//                "\nvoid delete(Long id);" + "Optional<" + entityClasses.getDtoClass().getName() + "> findOne(Long id); " +
+//                "\nList<" + entityClasses.getDtoClass().getName() + "> findAll(); " +
+//                "\nList<" + entityClasses.getDtoClass().getName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
+//                "\nPageInfo<" + entityClasses.getDtoClass().getName() + "> pageQuery(" + entityClasses.getQueryClass().getName() + " query); ";
+//
+//        if (entityClasses.createExcelFunctions) {
+//            content += "\nWorkbook downloadTemplate(); " +
+//                    "\nvoid upload(MultipartFile file); " +
+//                    "\nWorkbook download(" + entityClasses.getQueryClass().getName() + " query); ";
+//        }
+//
+//        content += "}";
+//        ClassCreator.of(project).init(serviceName, content)
+//                .importClass(entityClasses.dtoClass)
+//                .importClass("java.util.Optional")
+//                .importClass("java.util.List")
+//                .importClass("com.github.pagehelper.PageInfo")
+//                .importClassIf("Workbook", () -> entityClasses.createExcelFunctions)
+//                .importClassIf("ExcelColumn", () -> entityClasses.createExcelFunctions)
+//                .importClassIf("MultipartFile", () -> entityClasses.createExcelFunctions)
+//                .addTo(entityClasses.serviceDirectory)
+//                .and(serviceClass -> {
+//                    psiUtils.importClass(serviceClass, entityClasses.getQueryClass());
+//                    psiUtils.importClass(serviceClass, entityClasses.getQueryClass());
+//                    createServiceImpl(entityClasses.setServiceClass(serviceClass));
+//                });
 
-        String content = "public interface " +
-                serviceName +
-                "{" +
-                "void save(" + entityClasses.getDtoClass().getName() + " dto); " +
-                "\nvoid save(List<" + entityClasses.getDtoClass().getName() + "> dtos); " +
-                "\nvoid delete(Long id);" + "Optional<" + entityClasses.getDtoClass().getName() + "> findOne(Long id); " +
-                "\nList<" + entityClasses.getDtoClass().getName() + "> findAll(); " +
-                "\nList<" + entityClasses.getDtoClass().getName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
-                "\nPageInfo<" + entityClasses.getDtoClass().getName() + "> pageQuery(" + entityClasses.getQueryClass().getName() + " query); ";
-
-        if (entityClasses.createExcelFunctions) {
-            content += "\nWorkbook downloadTemplate(); " +
-                    "\nvoid upload(MultipartFile file); " +
-                    "\nWorkbook download(" + entityClasses.getQueryClass().getName() + " query); ";
-        }
-
-        content += "}";
-        ClassCreator.of(project).init(serviceName, content)
-                .importClass(entityClasses.dtoClass)
-                .importClass("java.util.Optional")
-                .importClass("java.util.List")
-                .importClass("com.github.pagehelper.PageInfo")
-                .importClassIf("Workbook", () -> entityClasses.createExcelFunctions)
-                .importClassIf("ExcelColumn", () -> entityClasses.createExcelFunctions)
-                .importClassIf("MultipartFile", () -> entityClasses.createExcelFunctions)
-                .addTo(entityClasses.serviceDirectory)
-                .and(serviceClass -> {
-                    psiUtils.importClass(serviceClass, entityClasses.getQueryClass());
-                    psiUtils.importClass(serviceClass, entityClasses.getQueryClass());
-                    createServiceImpl(entityClasses.setServiceClass(serviceClass));
-                });
+        // 不要接口，直接生成Service类
+        createServiceImpl(entityClasses);
     }
 
     /**
@@ -429,13 +432,10 @@ public class GeneratorAction extends MyAnAction {
      */
     private void createServiceImpl(EntityClasses entityClasses) {
         String serviceName = entityClasses.getServiceClass().getName();
-        // 增加接口服务实现
-        PsiDirectory serviceImplDirectory = psiUtils.getOrCreateSubDirectory(entityClasses.getServiceDirectory(), "impl");
+        PsiDirectory serviceImplDirectory = directoryMap.get("service");
 
         StringBuilder content = new StringBuilder("@Service public class ")
                 .append(serviceName)
-                .append("Impl ")
-                .append(" implements ").append(entityClasses.getServiceClass().getName())
                 .append("{");
 
         PsiClass repositoryClass = entityClasses.getRepositoryClass();
@@ -449,17 +449,17 @@ public class GeneratorAction extends MyAnAction {
         content.append("@Resource private ").append(entityClasses.getMapperClass().getName()).append(" mapper; \n")
                 .append("\n@Resource private ").append(entityClasses.getRepositoryClass().getName()).append(" repository; \n")
                 .append("\n@Resource private ").append(entityClasses.getDaoClass().getName()).append(" ").append(daoFieldName).append("; \n")
-                .append("\n@Override @Transactional public void save(").append(entityClasses.getDtoClass().getName()).append(" dto) { repository.save(mapper.toEntity(dto));}")
-                .append("\n@Override @Transactional  public void save(List<").append(entityClasses.getDtoClass().getName()).append("> dtos) { repository.").append(
+                .append("\n @Transactional public void save(").append(entityClasses.getDtoClass().getName()).append(" dto) { repository.save(mapper.toEntity(dto));}")
+                .append("\n @Transactional  public void save(List<").append(entityClasses.getDtoClass().getName()).append("> dtos) { repository.").append(
                 saveAllMethod).append("(mapper.toEntity(dtos)); }")
-                .append("\n@Override @Transactional  public void delete(Long id) { repository.delete(id); }")
-                .append("\n@Override @Transactional(readOnly = true)  public Optional<").append(entityClasses.getDtoClass().getName()).append(
+                .append("\n @Transactional  public void delete(Long id) { repository.delete(id); }")
+                .append("\n @Transactional(readOnly = true)  public Optional<").append(entityClasses.getDtoClass().getName()).append(
                 "> findOne(Long id) { return Optional.ofNullable(mapper.toDto(repository.findOne(id))); }")
-                .append("\n@Override @Transactional(readOnly = true) public List<").append(entityClasses.getDtoClass().getName()).append(
+                .append("\n @Transactional(readOnly = true) public List<").append(entityClasses.getDtoClass().getName()).append(
                 "> findAll() { return mapper.toDto(repository.findAll()); }")
-                .append("\n@Override @Transactional(readOnly = true) public List<").append(entityClasses.getDtoClass().getName()).append("> query(")
+                .append("\n @Transactional(readOnly = true) public List<").append(entityClasses.getDtoClass().getName()).append("> query(")
                 .append(entityClasses.getQueryClass().getName()).append(" query) { return ").append(daoFieldName).append(".query(query);}")
-                .append("\n@Override @Transactional(readOnly = true) public PageInfo<").append(entityClasses.getDtoClass().getName()).append("> pageQuery(").append(
+                .append("\n @Transactional(readOnly = true) public PageInfo<").append(entityClasses.getDtoClass().getName()).append("> pageQuery(").append(
                 entityClasses.getQueryClass().getName()).append(" query) {")
                 .append("if (null != query.getSize() && null != query.getPage()) {PageHelper.startPage(query.getPage(), query.getSize()); }")
                 .append("return new PageInfo<>(").append(daoFieldName).append(".query(query));}");
@@ -467,10 +467,10 @@ public class GeneratorAction extends MyAnAction {
         if (entityClasses.createExcelFunctions) {
             content.append("\nprivate List<ExcelColumn<").append(entityClasses.getDtoClass().getName())
                     .append(">> getExcelColumns(){return ExcelUtils.initColumnsFromClass(").append(entityClasses.dtoClass.getName()).append(".class); }")
-                    .append("\n@Override public Workbook downloadTemplate() { return ExcelUtils.createExcelGenerator(getExcelColumns()).getWorkbook();}")
-                    .append("\n@Override public void upload(MultipartFile file) {ExcelUtils.createExcelReader(file, getExcelColumns(), ")
+                    .append("\n public Workbook downloadTemplate() { return ExcelUtils.createExcelGenerator(getExcelColumns()).getWorkbook();}")
+                    .append("\n public void upload(MultipartFile file) {ExcelUtils.createExcelReader(file, getExcelColumns(), ")
                         .append(entityClasses.getDtoClass().getName()).append(".class).setErrorProcessor(sheet->{}).read(this::save); }")
-                    .append("\n@Override public Workbook download(").append(entityClasses.getQueryClass().getName()).append(" query) {List<")
+                    .append("\n public Workbook download(").append(entityClasses.getQueryClass().getName()).append(" query) {List<")
                         .append(entityClasses.getDtoClass().getName()).append("> dataList = query(query); return ExcelUtils.createExcelGenerator(getExcelColumns(), dataList).getWorkbook();} ");
         }
 
@@ -484,7 +484,7 @@ public class GeneratorAction extends MyAnAction {
                 .importClass("java.util.Optional")
                 .importClass("java.util.List")
                 .importClass("PageHelper")
-                .importClass("AbstractBaseEntityService")
+                .importClass("AbstractEntityService")
                 .importClass("com.github.pagehelper.PageInfo")
                 .importClassIf("ExcelUtils", () -> entityClasses.createExcelFunctions)
                 .importClassIf("Workbook", () -> entityClasses.createExcelFunctions)

@@ -2,8 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e869b9a5-cc02-4297-a596-a5248c7c8750" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/entityCodeGenerator.jar" beforeDir="false" afterPath="$PROJECT_DIR$/entityCodeGenerator.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/entityCodeGenerator.iml" beforeDir="false" afterPath="$PROJECT_DIR$/entityCodeGenerator.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/GeneratorAction.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/GeneratorAction.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -36,9 +38,10 @@
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent">
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
-    <property name="project.structure.last.edited" value="Modules" />
+    <property name="project.structure.last.edited" value="SDKs" />
     <property name="project.structure.proportion" value="0.15" />
     <property name="project.structure.side.proportion" value="0.30547264" />
     <property name="settings.editor.selected.configurable" value="preferences.pluginManager" />
@@ -54,7 +57,8 @@
     <configuration name="Plugin" type="#org.jetbrains.idea.devkit.run.PluginConfigurationType">
       <module name="entityCodeGenerator" />
       <option name="VM_PARAMETERS" value="-Xmx512m -Xms256m -ea" />
-      <option name="PROGRAM_PARAMETERS" />
+      <option name="PROGRAM_PARAMETERS" value="" />
+      <alternative-path path="IntelliJ IDEA Community Edition IC-192.7142.36" alternative-path-enabled="true" />
       <predefined_log_file enabled="true" id="idea.log" />
       <method v="2">
         <option name="Make" enabled="true" />
@@ -69,6 +73,10 @@
         <option name="Make" enabled="true" />
       </method>
     </configuration>
+    <list>
+      <item itemvalue="Application.GeneratorAction" />
+      <item itemvalue="Plugin.Plugin" />
+    </list>
     <recent_temporary>
       <list>
         <item itemvalue="Application.GeneratorAction" />
@@ -102,18 +110,24 @@
     </option>
   </component>
   <component name="WindowStateProjectService">
+    <state x="294" y="159" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1583391403810">
+      <screen x="0" y="0" width="1680" height="1010" />
+    </state>
+    <state x="294" y="159" key="#com.intellij.execution.impl.EditConfigurationsDialog/0.0.1680.1010@0.0.1680.1010" timestamp="1583391403810" />
     <state x="645" y="189" key="#com.intellij.ide.util.MemberChooser" timestamp="1582444881750">
       <screen x="0" y="0" width="1680" height="1010" />
     </state>
     <state x="645" y="189" key="#com.intellij.ide.util.MemberChooser/0.0.1680.1010@0.0.1680.1010" timestamp="1582444881750" />
-    <state x="620" y="260" key="FileChooserDialogImpl" timestamp="1582447163213">
-      <screen x="0" y="0" width="1680" height="1010" />
+    <state x="709" y="268" key="FileChooserDialogImpl" timestamp="1587386426961">
+      <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state x="620" y="260" key="FileChooserDialogImpl/0.0.1680.1010@0.0.1680.1010" timestamp="1582447163213" />
-    <state x="341" y="147" key="SettingsEditor" timestamp="1582447165841">
-      <screen x="0" y="0" width="1680" height="1010" />
+    <state x="709" y="268" key="FileChooserDialogImpl/-1366.0.1366.728/0.0.1920.1040@0.0.1920.1040" timestamp="1587386426961" />
+    <state x="620" y="260" key="FileChooserDialogImpl/0.0.1680.1010@0.0.1680.1010" timestamp="1583407764792" />
+    <state x="151" y="75" key="SettingsEditor" timestamp="1587386429919">
+      <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state x="341" y="147" key="SettingsEditor/0.0.1680.1010@0.0.1680.1010" timestamp="1582447165841" />
+    <state x="151" y="75" key="SettingsEditor/-1366.0.1366.728/0.0.1920.1040@0.0.1920.1040" timestamp="1587386429919" />
+    <state x="132" y="73" key="SettingsEditor/0.0.1680.1010@0.0.1680.1010" timestamp="1583407766832" />
     <state x="561" y="246" width="582" height="524" key="StructurePopup" timestamp="1582446463322">
       <screen x="0" y="0" width="1680" height="1010" />
     </state>
@@ -122,6 +136,10 @@
       <screen x="0" y="0" width="1680" height="1010" />
     </state>
     <state x="516" y="238" width="647" height="534" key="find.popup/0.0.1680.1010@0.0.1680.1010" timestamp="1582447241665" />
+    <state x="214" y="114" key="new project wizard" timestamp="1583391275140">
+      <screen x="0" y="0" width="1680" height="1010" />
+    </state>
+    <state x="214" y="114" key="new project wizard/0.0.1680.1010@0.0.1680.1010" timestamp="1583391275140" />
   </component>
   <component name="XDebuggerManager">
     <watches-manager>
