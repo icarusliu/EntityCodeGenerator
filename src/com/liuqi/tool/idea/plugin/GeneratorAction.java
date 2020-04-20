@@ -18,10 +18,26 @@ import java.util.*;
 import java.util.function.Consumer;
 
 /**
+ * 实体类代码创建器
+ * 生成代码路径：
+ * bean
+ *  dto
+ *  mapper
+ *  query
+ * domain
+ *  dao
+ *  entity
+ *  repository
+ * service
+ * web.rest
+ *
+ * 其中，Service层直接使用实现类，不使用接口；
+ *
  * @author LiuQi 2019/7/11-10:50
  * @version V1.0
  **/
 public class GeneratorAction extends MyAnAction {
+    private PsiDirectory workDir;
     private Map<String, PsiDirectory> directoryMap = new HashMap<>(16);
 
     @Override
@@ -36,45 +52,45 @@ public class GeneratorAction extends MyAnAction {
             return;
         }
 
-        // 加载所有目录
-        loadDirs();
+        // 获取当前实体所在目录的上两级目录，需要严格按说明中的目录组织，其它目录不考虑
+        workDir = aClass.getContainingFile().getContainingDirectory().getParentDirectory().getParentDirectory();
 
-        // 先创建Service目录
-        EntityClasses entityClasses = new EntityClasses()
-                .setServiceDirectory(createServiceDirectory())
-                .setEntityClass(aClass);
+        EntityClasses entityClasses = new EntityClasses();
+
+        // 加载所有目录
+        initDirs();
+        entityClasses.setEntityClass(aClass);
 
         // 在它所在包的同级的repository中创建Repository
         WriteCommandAction.runWriteCommandAction(project, () ->
                 createRepository(entityClasses));
     }
 
-    private void loadDirs() {
-        PsiDirectory rootDirectory = containerDirectory.getParentDirectory();
-        if (null == rootDirectory) {
-            rootDirectory = containerDirectory;
-        } else {
-            while (null != rootDirectory.getParent()) {
-                if (rootDirectory.getParent().getName().equals("src")) {
-                    break;
+    private void initDirs() {
+        List<String> directories = Arrays.asList("bean", "bean/dto", "bean/mapper", "bean/query",
+                "domain", "domain/dao", "domain/entity", "domain/repository", "service",
+                "web/rest");
+
+        directoryMap.clear();
+
+        directories.forEach(dir -> {
+            if (!dir.contains("/")) {
+                PsiDirectory directory = workDir.findSubdirectory(dir);
+                if (null == directory) {
+                    directory = workDir.createSubdirectory(dir);
                 }
 
-                rootDirectory = rootDirectory.getParent();
+                directoryMap.put(dir, directory);
+            } else {
+                String[] dirs = dir.split("/");
+                PsiDirectory directory = workDir.findSubdirectory(dirs[0]);
+                PsiDirectory subDir = directory.findSubdirectory(dirs[1]);
+                if (null == subDir) {
+                    subDir = directory.createSubdirectory(dirs[1]);
+                }
+                directoryMap.put(dirs[1], subDir);
             }
-        }
-
-        loadDir(rootDirectory);
-    }
-
-    private void loadDir(PsiDirectory psiDirectory) {
-        directoryMap.put(psiDirectory.getName(), psiDirectory);
-        for (PsiDirectory subdirectory : psiDirectory.getSubdirectories()) {
-            loadDir(subdirectory);
-        }
-    }
-
-    private Optional<PsiDirectory> findDir(String dirName) {
-        return Optional.ofNullable(directoryMap.get(dirName));
+        });
     }
 
     /**
@@ -89,8 +105,7 @@ public class GeneratorAction extends MyAnAction {
 
         String entityName = className.replace("Entity", "");
 
-        // 在service下创建dto目录
-        PsiDirectory dtoDirectory = findDir("dto").orElseGet(() -> psiUtils.getOrCreateSubDirectory(entityClasses.getServiceDirectory(), "dto"));
+        PsiDirectory dtoDirectory = directoryMap.get("dto");
 
         // 先检查是否存在AbstractBaseDTO对象，如果存在的话DTO对象需要继承自该对象
         Optional<PsiClass> abstractBaseDTOOptional = psiUtils.findClass("AbstractBaseDTO");
@@ -146,31 +161,6 @@ public class GeneratorAction extends MyAnAction {
         createMapperClass(entityClasses);
     }
 
-
-    /**
-     * 创建Service包目录
-     *
-     * @param parentDirectory 父级目录
-     * @return 创建的目录
-     */
-    private PsiDirectory createServiceDirectory() {
-        return findDir("service")
-                .orElseGet(() -> {
-                    PsiDirectory serviceDirectory;
-
-                    if (null == containerDirectory.getParent()) {
-                        serviceDirectory = psiUtils.getOrCreateSubDirectory(containerDirectory, "service");
-                    } else {
-                        if (null == containerDirectory.getParent().getParent()) {
-                            serviceDirectory = psiUtils.getOrCreateSubDirectory(containerDirectory.getParent(), "service");
-                        } else {
-                            serviceDirectory = psiUtils.getOrCreateSubDirectory(containerDirectory.getParent().getParent(), "service");
-                        }
-                    }
-                    return serviceDirectory;
-                });
-    }
-
     /**
      * 创建Mapper对象
      */
@@ -178,7 +168,7 @@ public class GeneratorAction extends MyAnAction {
         String entityName = entityClasses.getEntityName();
 
         // 增加mapper对象
-        PsiDirectory mapperDirectory = findDir("mapper").orElseGet(() -> psiUtils.getOrCreateSubDirectory(entityClasses.serviceDirectory, "mapper"));
+        PsiDirectory mapperDirectory = directoryMap.get("mapper");
 
         // 先创建EntityMapper对象
         // 先检查EntityMapper是否存在
@@ -223,14 +213,13 @@ public class GeneratorAction extends MyAnAction {
      */
     private void addQuery(EntityClasses entityClasses) {
         // 先创建Query对象
-        PsiDirectory queryDirectory = findDir("query")
-                .orElseGet(() -> psiUtils.getOrCreateSubDirectory(entityClasses.getServiceDirectory(), "query"));
+        PsiDirectory queryDirectory = directoryMap.get("query");
         ClassCreator.of(project)
                 .init(entityClasses.getEntityName() + "Query", "public class " + entityClasses.getEntityName() + "Query {private Integer page;  \nprivate Integer size;  }")
                 .addGetterAndSetterMethods()
                 .addTo(queryDirectory)
                 .and(queryClass -> {
-                    entityClasses.setQueryClass(queryClass).setQueryDirectory(queryDirectory);
+                    entityClasses.setQueryClass(queryClass);
 
                     // 在Repository的同级目录下创建dao目录及dao对象
                     addDao(entityClasses);
@@ -243,8 +232,7 @@ public class GeneratorAction extends MyAnAction {
      * @param entityClasses 类集
      */
     private void addDao(EntityClasses entityClasses) {
-        PsiDirectory daoDirectory = findDir("dao").orElseGet(() -> null == containerDirectory.getParent() ? containerDirectory :
-                psiUtils.getOrCreateSubDirectory(containerDirectory.getParent(), "dao"));
+        PsiDirectory daoDirectory = directoryMap.get("dao");
 
         ClassCreator.of(project).init(entityClasses.getEntityName() + "Dao",
                 "@Mapper public interface " + entityClasses.getEntityName() + "Dao {" +
@@ -356,20 +344,20 @@ public class GeneratorAction extends MyAnAction {
                     .append("<include refid=\"columns\"/>")
                     .append("</select>");
 
-            // 增加批量新增语句
-            content.append("<insert id=\"batchAdd\" parameterType=\"")
-                    .append(psiUtils.getPackageAndName(entityClasses.getDtoClass()))
-                    .append("\">")
-                    .append("\ninsert into ")
-                    .append(tableName)
-                    .append("(")
-                    .append(insertColumns.toString())
-                    .append(") values <foreach collection=\"list\" item=\"item\" open=\"\" close=\"\" separator=\",\">\n")
-                    .append("(")
-                    .append(insertFields.toString())
-                    .append(")")
-                    .append("\n</foreach></insert>")
-            ;
+//            // 增加批量新增语句
+//            content.append("<insert id=\"batchAdd\" parameterType=\"")
+//                    .append(psiUtils.getPackageAndName(entityClasses.getDtoClass()))
+//                    .append("\">")
+//                    .append("\ninsert into ")
+//                    .append(tableName)
+//                    .append("(")
+//                    .append(insertColumns.toString())
+//                    .append(") values <foreach collection=\"list\" item=\"item\" open=\"\" close=\"\" separator=\",\">\n")
+//                    .append("(")
+//                    .append(insertFields.toString())
+//                    .append(")")
+//                    .append("\n</foreach></insert>")
+//            ;
 
             content.append("</mapper>");
 
@@ -384,39 +372,42 @@ public class GeneratorAction extends MyAnAction {
 
     private void createService(EntityClasses entityClasses) {
         // 增加服务接口
-        String serviceName = entityClasses.getEntityName().concat("Service");
+//        String serviceName = entityClasses.getEntityName().concat("Service");
+//
+//        String content = "public interface " +
+//                serviceName +
+//                "{" +
+//                "void save(" + entityClasses.getDtoClass().getName() + " dto); " +
+//                "\nvoid save(List<" + entityClasses.getDtoClass().getName() + "> dtos); " +
+//                "\nvoid delete(Long id);" + "Optional<" + entityClasses.getDtoClass().getName() + "> findOne(Long id); " +
+//                "\nList<" + entityClasses.getDtoClass().getName() + "> findAll(); " +
+//                "\nList<" + entityClasses.getDtoClass().getName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
+//                "\nPageInfo<" + entityClasses.getDtoClass().getName() + "> pageQuery(" + entityClasses.getQueryClass().getName() + " query); ";
+//
+//        if (entityClasses.createExcelFunctions) {
+//            content += "\nWorkbook downloadTemplate(); " +
+//                    "\nvoid upload(MultipartFile file); " +
+//                    "\nWorkbook download(" + entityClasses.getQueryClass().getName() + " query); ";
+//        }
+//
+//        content += "}";
+//        ClassCreator.of(project).init(serviceName, content)
+//                .importClass(entityClasses.dtoClass)
+//                .importClass("java.util.Optional")
+//                .importClass("java.util.List")
+//                .importClass("com.github.pagehelper.PageInfo")
+//                .importClassIf("Workbook", () -> entityClasses.createExcelFunctions)
+//                .importClassIf("ExcelColumn", () -> entityClasses.createExcelFunctions)
+//                .importClassIf("MultipartFile", () -> entityClasses.createExcelFunctions)
+//                .addTo(entityClasses.serviceDirectory)
+//                .and(serviceClass -> {
+//                    psiUtils.importClass(serviceClass, entityClasses.getQueryClass());
+//                    psiUtils.importClass(serviceClass, entityClasses.getQueryClass());
+//                    createServiceImpl(entityClasses.setServiceClass(serviceClass));
+//                });
 
-        String content = "public interface " +
-                serviceName +
-                "{" +
-                "void save(" + entityClasses.getDtoClass().getName() + " dto); " +
-                "\nvoid save(List<" + entityClasses.getDtoClass().getName() + "> dtos); " +
-                "\nvoid delete(Long id);" + "Optional<" + entityClasses.getDtoClass().getName() + "> findOne(Long id); " +
-                "\nList<" + entityClasses.getDtoClass().getName() + "> findAll(); " +
-                "\nList<" + entityClasses.getDtoClass().getName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
-                "\nPageInfo<" + entityClasses.getDtoClass().getName() + "> pageQuery(" + entityClasses.getQueryClass().getName() + " query); ";
-
-        if (entityClasses.createExcelFunctions) {
-            content += "\nWorkbook downloadTemplate(); " +
-                    "\nvoid upload(MultipartFile file); " +
-                    "\nWorkbook download(" + entityClasses.getQueryClass().getName() + " query); ";
-        }
-
-        content += "}";
-        ClassCreator.of(project).init(serviceName, content)
-                .importClass(entityClasses.dtoClass)
-                .importClass("java.util.Optional")
-                .importClass("java.util.List")
-                .importClass("com.github.pagehelper.PageInfo")
-                .importClassIf("Workbook", () -> entityClasses.createExcelFunctions)
-                .importClassIf("ExcelColumn", () -> entityClasses.createExcelFunctions)
-                .importClassIf("MultipartFile", () -> entityClasses.createExcelFunctions)
-                .addTo(entityClasses.serviceDirectory)
-                .and(serviceClass -> {
-                    psiUtils.importClass(serviceClass, entityClasses.getQueryClass());
-                    psiUtils.importClass(serviceClass, entityClasses.getQueryClass());
-                    createServiceImpl(entityClasses.setServiceClass(serviceClass));
-                });
+        // 不创建接口了
+        createServiceImpl(entityClasses);
     }
 
     /**
@@ -430,12 +421,10 @@ public class GeneratorAction extends MyAnAction {
     private void createServiceImpl(EntityClasses entityClasses) {
         String serviceName = entityClasses.getServiceClass().getName();
         // 增加接口服务实现
-        PsiDirectory serviceImplDirectory = psiUtils.getOrCreateSubDirectory(entityClasses.getServiceDirectory(), "impl");
+        PsiDirectory serviceImplDirectory = directoryMap.get("service");
 
         StringBuilder content = new StringBuilder("@Service public class ")
                 .append(serviceName)
-                .append("Impl ")
-                .append(" implements ").append(entityClasses.getServiceClass().getName())
                 .append("{");
 
         PsiClass repositoryClass = entityClasses.getRepositoryClass();
@@ -449,17 +438,17 @@ public class GeneratorAction extends MyAnAction {
         content.append("@Resource private ").append(entityClasses.getMapperClass().getName()).append(" mapper; \n")
                 .append("\n@Resource private ").append(entityClasses.getRepositoryClass().getName()).append(" repository; \n")
                 .append("\n@Resource private ").append(entityClasses.getDaoClass().getName()).append(" ").append(daoFieldName).append("; \n")
-                .append("\n@Override @Transactional public void save(").append(entityClasses.getDtoClass().getName()).append(" dto) { repository.save(mapper.toEntity(dto));}")
-                .append("\n@Override @Transactional  public void save(List<").append(entityClasses.getDtoClass().getName()).append("> dtos) { repository.").append(
+                .append("\n @Transactional public void save(").append(entityClasses.getDtoClass().getName()).append(" dto) { repository.save(mapper.toEntity(dto));}")
+                .append("\n @Transactional  public void save(List<").append(entityClasses.getDtoClass().getName()).append("> dtos) { repository.").append(
                 saveAllMethod).append("(mapper.toEntity(dtos)); }")
-                .append("\n@Override @Transactional  public void delete(Long id) { repository.delete(id); }")
-                .append("\n@Override @Transactional(readOnly = true)  public Optional<").append(entityClasses.getDtoClass().getName()).append(
+                .append("\n @Transactional  public void delete(Long id) { repository.delete(id); }")
+                .append("\n @Transactional(readOnly = true)  public Optional<").append(entityClasses.getDtoClass().getName()).append(
                 "> findOne(Long id) { return Optional.ofNullable(mapper.toDto(repository.findOne(id))); }")
-                .append("\n@Override @Transactional(readOnly = true) public List<").append(entityClasses.getDtoClass().getName()).append(
+                .append("\n @Transactional(readOnly = true) public List<").append(entityClasses.getDtoClass().getName()).append(
                 "> findAll() { return mapper.toDto(repository.findAll()); }")
-                .append("\n@Override @Transactional(readOnly = true) public List<").append(entityClasses.getDtoClass().getName()).append("> query(")
+                .append("\n @Transactional(readOnly = true) public List<").append(entityClasses.getDtoClass().getName()).append("> query(")
                 .append(entityClasses.getQueryClass().getName()).append(" query) { return ").append(daoFieldName).append(".query(query);}")
-                .append("\n@Override @Transactional(readOnly = true) public PageInfo<").append(entityClasses.getDtoClass().getName()).append("> pageQuery(").append(
+                .append("\n @Transactional(readOnly = true) public PageInfo<").append(entityClasses.getDtoClass().getName()).append("> pageQuery(").append(
                 entityClasses.getQueryClass().getName()).append(" query) {")
                 .append("if (null != query.getSize() && null != query.getPage()) {PageHelper.startPage(query.getPage(), query.getSize()); }")
                 .append("return new PageInfo<>(").append(daoFieldName).append(".query(query));}");
@@ -467,8 +456,8 @@ public class GeneratorAction extends MyAnAction {
         if (entityClasses.createExcelFunctions) {
             content.append("\nprivate List<ExcelColumn<").append(entityClasses.getDtoClass().getName())
                     .append(">> getExcelColumns(){return ExcelUtils.initColumnsFromClass(").append(entityClasses.dtoClass.getName()).append(".class); }")
-                    .append("\n@Override public Workbook downloadTemplate() { return ExcelUtils.createExcelGenerator(getExcelColumns()).getWorkbook();}")
-                    .append("\n@Override public void upload(MultipartFile file) {ExcelUtils.createExcelReader(file, getExcelColumns(), ")
+                    .append("\n public Workbook downloadTemplate() { return ExcelUtils.createExcelGenerator(getExcelColumns()).getWorkbook();}")
+                    .append("\n public void upload(MultipartFile file) {ExcelUtils.createExcelReader(file, getExcelColumns(), ")
                         .append(entityClasses.getDtoClass().getName()).append(".class).setErrorProcessor(sheet->{}).read(this::save); }")
                     .append("\n@Override public Workbook download(").append(entityClasses.getQueryClass().getName()).append(" query) {List<")
                         .append(entityClasses.getDtoClass().getName()).append("> dataList = query(query); return ExcelUtils.createExcelGenerator(getExcelColumns(), dataList).getWorkbook();} ");
@@ -476,7 +465,7 @@ public class GeneratorAction extends MyAnAction {
 
         content.append("}");
 
-        ClassCreator.of(project).init(serviceName + "Impl", content.toString())
+        ClassCreator.of(project).init(serviceName, content.toString())
                 .importClass(entityClasses.getEntityClass())
                 .importClass("javax.annotation.Resource")
                 .importClass("org.springframework.stereotype.Service")
@@ -508,20 +497,7 @@ public class GeneratorAction extends MyAnAction {
      */
     private void createController(EntityClasses entityClasses) {
         // 在Service同目录下获取controller或者web目录
-        PsiDirectory parentDirectory = entityClasses.getServiceDirectory().getParent();
-        PsiDirectory controllerDirectory = parentDirectory.findSubdirectory("controller");
-        if (null == controllerDirectory) {
-            controllerDirectory = parentDirectory.findSubdirectory("web");
-            if (null != controllerDirectory) {
-                if (null != controllerDirectory.findSubdirectory("rest")) {
-                    controllerDirectory = controllerDirectory.findSubdirectory("rest");
-                }
-            }
-        }
-
-        if (null == controllerDirectory) {
-            controllerDirectory = findDir("controller").orElseGet(() -> parentDirectory.createSubdirectory("controller"));
-        }
+        PsiDirectory controllerDirectory = directoryMap.get("web/rest");
 
         // 先去目录下随便找一个Controller，获取其路径，判断其是否以api开头，从而决定当前路径是否要以api开头
         PsiFile[] files = controllerDirectory.getFiles();
@@ -648,9 +624,7 @@ public class GeneratorAction extends MyAnAction {
     private void createRepository(EntityClasses entityClasses) {
         String entityName = entityClasses.getEntityName();
         assert entityName != null;
-        PsiDirectory parentDirectory = containerDirectory.getParentDirectory();
-        PsiDirectory repositoryDirectory = findDir("repository").orElseGet(() -> null == parentDirectory ?
-                containerDirectory : psiUtils.getOrCreateSubDirectory(parentDirectory, "repository"));
+        PsiDirectory repositoryDirectory = directoryMap.get("repository");
 
         String repositoryName = entityName.replace("Entity", "").concat("Repository");
         getBaseRepositoryClass(repositoryDirectory, baseRepositoryClass ->
@@ -694,8 +668,6 @@ public class GeneratorAction extends MyAnAction {
         private PsiClass serviceClass;
         private PsiClass serviceImplClass;
         private PsiClass controllerClass;
-        private PsiDirectory serviceDirectory;
-        private PsiDirectory queryDirectory;
         private PsiClass queryClass;
         private PsiClass daoClass;
         private Boolean createExcelFunctions = false;
@@ -763,14 +735,6 @@ public class GeneratorAction extends MyAnAction {
             return this;
         }
 
-        PsiDirectory getServiceDirectory() {
-            return serviceDirectory;
-        }
-
-        EntityClasses setServiceDirectory(PsiDirectory serviceDirectory) {
-            this.serviceDirectory = serviceDirectory;
-            return this;
-        }
 
         String getEntityName() {
             return Objects.requireNonNull(this.getEntityClass().getName()).replace("Entity", "");
@@ -796,14 +760,6 @@ public class GeneratorAction extends MyAnAction {
         EntityClasses setDaoClass(PsiClass daoClass) {
             this.daoClass = daoClass;
             return this;
-        }
-
-        PsiDirectory getQueryDirectory() {
-            return queryDirectory;
-        }
-
-        void setQueryDirectory(PsiDirectory queryDirectory) {
-            this.queryDirectory = queryDirectory;
         }
 
         public Boolean getCreateExcelFunctions() {

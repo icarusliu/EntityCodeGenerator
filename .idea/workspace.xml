@@ -2,8 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e869b9a5-cc02-4297-a596-a5248c7c8750" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/entityCodeGenerator.jar" beforeDir="false" afterPath="$PROJECT_DIR$/entityCodeGenerator.jar" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/entityCodeGenerator.iml" beforeDir="false" afterPath="$PROJECT_DIR$/entityCodeGenerator.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/GeneratorAction.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/liuqi/tool/idea/plugin/GeneratorAction.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -32,16 +33,17 @@
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
-    <option name="showExcludedFiles" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent">
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="project.structure.last.edited" value="Modules" />
     <property name="project.structure.proportion" value="0.15" />
     <property name="project.structure.side.proportion" value="0.30547264" />
-    <property name="settings.editor.selected.configurable" value="preferences.pluginManager" />
+    <property name="settings.editor.selected.configurable" value="reference.projectsettings.compiler.javacompiler" />
   </component>
   <component name="RunManager" selected="Plugin.Plugin">
     <configuration name="GeneratorAction" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
@@ -93,35 +95,41 @@
       <map>
         <entry key="MAIN">
           <value>
-            <State>
-              <option name="COLUMN_ORDER" />
-            </State>
+            <State />
           </value>
         </entry>
       </map>
     </option>
+    <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="WindowStateProjectService">
     <state x="645" y="189" key="#com.intellij.ide.util.MemberChooser" timestamp="1582444881750">
       <screen x="0" y="0" width="1680" height="1010" />
     </state>
     <state x="645" y="189" key="#com.intellij.ide.util.MemberChooser/0.0.1680.1010@0.0.1680.1010" timestamp="1582444881750" />
-    <state x="620" y="260" key="FileChooserDialogImpl" timestamp="1582447163213">
-      <screen x="0" y="0" width="1680" height="1010" />
+    <state x="472" y="175" key="FileChooserDialogImpl" timestamp="1587376370148">
+      <screen x="0" y="0" width="1280" height="680" />
     </state>
+    <state x="472" y="175" key="FileChooserDialogImpl/0.0.1280.680@0.0.1280.680" timestamp="1587376370148" />
     <state x="620" y="260" key="FileChooserDialogImpl/0.0.1680.1010@0.0.1680.1010" timestamp="1582447163213" />
-    <state x="341" y="147" key="SettingsEditor" timestamp="1582447165841">
-      <screen x="0" y="0" width="1680" height="1010" />
+    <state x="242" y="0" key="SettingsEditor" timestamp="1587376374274">
+      <screen x="0" y="0" width="1280" height="680" />
     </state>
+    <state x="242" y="0" key="SettingsEditor/0.0.1280.680@0.0.1280.680" timestamp="1587376374274" />
     <state x="341" y="147" key="SettingsEditor/0.0.1680.1010@0.0.1680.1010" timestamp="1582447165841" />
-    <state x="561" y="246" width="582" height="524" key="StructurePopup" timestamp="1582446463322">
-      <screen x="0" y="0" width="1680" height="1010" />
+    <state x="427" y="166" width="576" height="353" key="StructurePopup" timestamp="1587379313432">
+      <screen x="0" y="0" width="1280" height="680" />
     </state>
+    <state x="427" y="166" width="576" height="353" key="StructurePopup/0.0.1280.680@0.0.1280.680" timestamp="1587379313432" />
     <state x="561" y="246" width="582" height="524" key="StructurePopup/0.0.1680.1010@0.0.1680.1010" timestamp="1582446463322" />
     <state x="516" y="238" width="647" height="534" key="find.popup" timestamp="1582447241665">
       <screen x="0" y="0" width="1680" height="1010" />
     </state>
     <state x="516" y="238" width="647" height="534" key="find.popup/0.0.1680.1010@0.0.1680.1010" timestamp="1582447241665" />
+    <state x="303" y="1" width="672" height="678" key="search.everywhere.popup" timestamp="1587378557956">
+      <screen x="0" y="0" width="1280" height="680" />
+    </state>
+    <state x="303" y="1" width="672" height="678" key="search.everywhere.popup/0.0.1280.680@0.0.1280.680" timestamp="1587378557956" />
   </component>
   <component name="XDebuggerManager">
     <watches-manager>
