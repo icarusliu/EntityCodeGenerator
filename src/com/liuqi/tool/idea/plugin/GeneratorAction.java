@@ -7,6 +7,7 @@ import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.file.PsiDirectoryFactory;
+import com.liuqi.tool.idea.plugin.bean.GeneratorConfig;
 import com.liuqi.tool.idea.plugin.utils.MyStringUtils;
 import com.liuqi.tool.idea.plugin.utils.PsiUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -21,16 +22,16 @@ import java.util.function.Consumer;
  * 实体类代码创建器
  * 生成代码路径：
  * bean
- *  dto
- *  mapper
- *  query
+ * dto
+ * mapper
+ * query
  * domain
- *  dao
- *  entity
- *  repository
+ * dao
+ * entity
+ * repository
  * service
  * web.rest
- *
+ * <p>
  * 其中，Service层直接使用实现类，不使用接口；
  *
  * @author LiuQi 2019/7/11-10:50
@@ -39,6 +40,7 @@ import java.util.function.Consumer;
 public class GeneratorAction extends MyAnAction {
     private PsiDirectory workDir;
     private Map<String, PsiDirectory> directoryMap = new HashMap<>(16);
+    private GeneratorConfig config;
 
     @Override
     public synchronized void actionPerformed(@NotNull AnActionEvent anActionEvent) {
@@ -51,6 +53,9 @@ public class GeneratorAction extends MyAnAction {
             // 只处理被Entity注解的类
             return;
         }
+
+        // 加载生成配置
+        config = GeneratorConfig.load(project);
 
         // 获取当前实体所在目录的上两级目录，需要严格按说明中的目录组织，其它目录不考虑
         workDir = aClass.getContainingFile().getContainingDirectory().getParentDirectory().getParentDirectory();
@@ -70,6 +75,10 @@ public class GeneratorAction extends MyAnAction {
         List<String> directories = Arrays.asList("bean", "bean/dto", "bean/mapper", "bean/query",
                 "domain", "domain/dao", "domain/entity", "domain/repository", "service",
                 "web/rest");
+
+        if (config.getWithInterface()) {
+            directories.add("service/impl");
+        }
 
         directoryMap.clear();
 
@@ -95,9 +104,6 @@ public class GeneratorAction extends MyAnAction {
 
     /**
      * 根据实体类创建Repository、Service等操作类
-     *
-     * @param aClass          实体类
-     * @param repositoryClass 数据库操作类
      */
     private void createClasses(EntityClasses entityClasses) {
         String className = entityClasses.getEntityClassName();
@@ -136,26 +142,19 @@ public class GeneratorAction extends MyAnAction {
      */
     private void addExcelAnnotations(EntityClasses entityClasses) {
         // 如果Workbook存在并且ExcelUtils存在，则生成Excel上传下载功能
-        Optional<PsiClass> workbookOptional = PsiUtils.of(project).findClass("org.apache.poi.ss.usermodel.Workbook");
-        if (workbookOptional.isPresent()) {
-            Optional<PsiClass> excelUtilsOptional = PsiUtils.of(project).findClass("ExcelField");
-            boolean excelUtilsExists = excelUtilsOptional.isPresent();
-            if (excelUtilsExists) {
-                entityClasses.setCreateExcelFunctions(true);
-
-                // 给DTO类增加ExcelField注解
-                PsiClass dtoClass = entityClasses.dtoClass;
-                PsiField[] fields = dtoClass.getFields();
-                for (PsiField field : fields) {
-                    PsiUtils.of(project)
-                            .addAnnotation(field, "ExcelField");
-                }
-
+        if (config.getExcelFunc()) {
+            // 给DTO类增加ExcelField注解
+            PsiClass dtoClass = entityClasses.dtoClass;
+            PsiField[] fields = dtoClass.getFields();
+            for (PsiField field : fields) {
                 PsiUtils.of(project)
-                        .findClass("ExcelField")
-                        .ifPresent(psiClass -> PsiUtils.of(project)
-                                .importClass(dtoClass, psiClass));
+                        .addAnnotation(field, "ExcelField");
             }
+
+            PsiUtils.of(project)
+                    .findClass("ExcelField")
+                    .ifPresent(psiClass -> PsiUtils.of(project)
+                            .importClass(dtoClass, psiClass));
         }
 
         createMapperClass(entityClasses);
@@ -186,7 +185,7 @@ public class GeneratorAction extends MyAnAction {
                         psiUtils.importClass(mapperClass, entityClasses.getDtoClass(), entityMapperClass);
 
                         // 先增加MyBatis的Dao对象及XML文件
-                        addQuery(entityClasses.setMapperClass(mapperClass));
+                        createQuery(entityClasses.setMapperClass(mapperClass));
                     });
         };
 
@@ -211,18 +210,33 @@ public class GeneratorAction extends MyAnAction {
     /**
      * 增加MyBatis相关文件
      */
-    private void addQuery(EntityClasses entityClasses) {
+    private void createQuery(EntityClasses entityClasses) {
+        // 获取BaseQuery对象，没有就不使用
+        boolean baseQueryExists = psiUtils.findClass("BaseQuery")
+                .isPresent();
+
+        StringBuilder content = new StringBuilder()
+                .append("public class")
+                .append(entityClasses.getEntityName())
+                .append("Query ");
+
+        if (baseQueryExists) {
+            content.append("extends BaseQuery{}");
+        } else {
+            content.append("{private Integer page;  \nprivate Integer size;  }");
+        }
+
         // 先创建Query对象
         PsiDirectory queryDirectory = directoryMap.get("query");
         ClassCreator.of(project)
-                .init(entityClasses.getEntityName() + "Query", "public class " + entityClasses.getEntityName() + "Query {private Integer page;  \nprivate Integer size;  }")
+                .init(entityClasses.getEntityName() + "Query", content.toString())
                 .addGetterAndSetterMethods()
                 .addTo(queryDirectory)
                 .and(queryClass -> {
                     entityClasses.setQueryClass(queryClass);
 
                     // 在Repository的同级目录下创建dao目录及dao对象
-                    addDao(entityClasses);
+                    createDao(entityClasses);
                 });
     }
 
@@ -231,7 +245,7 @@ public class GeneratorAction extends MyAnAction {
      *
      * @param entityClasses 类集
      */
-    private void addDao(EntityClasses entityClasses) {
+    private void createDao(EntityClasses entityClasses) {
         PsiDirectory daoDirectory = directoryMap.get("dao");
 
         ClassCreator.of(project).init(entityClasses.getEntityName() + "Dao",
@@ -344,20 +358,20 @@ public class GeneratorAction extends MyAnAction {
                     .append("<include refid=\"columns\"/>")
                     .append("</select>");
 
-//            // 增加批量新增语句
-//            content.append("<insert id=\"batchAdd\" parameterType=\"")
-//                    .append(psiUtils.getPackageAndName(entityClasses.getDtoClass()))
-//                    .append("\">")
-//                    .append("\ninsert into ")
-//                    .append(tableName)
-//                    .append("(")
-//                    .append(insertColumns.toString())
-//                    .append(") values <foreach collection=\"list\" item=\"item\" open=\"\" close=\"\" separator=\",\">\n")
-//                    .append("(")
-//                    .append(insertFields.toString())
-//                    .append(")")
-//                    .append("\n</foreach></insert>")
-//            ;
+            // 增加批量新增语句
+            content.append("<insert id=\"batchAdd\" parameterType=\"")
+                    .append(psiUtils.getPackageAndName(entityClasses.getDtoClass()))
+                    .append("\">")
+                    .append("\ninsert into ")
+                    .append(tableName)
+                    .append("(")
+                    .append(insertColumns.toString())
+                    .append(") values <foreach collection=\"list\" item=\"item\" open=\"\" close=\"\" separator=\",\">\n")
+                    .append("(")
+                    .append(insertFields.toString())
+                    .append(")")
+                    .append("\n</foreach></insert>")
+            ;
 
             content.append("</mapper>");
 
@@ -371,52 +385,50 @@ public class GeneratorAction extends MyAnAction {
     }
 
     private void createService(EntityClasses entityClasses) {
-        // 增加服务接口
-//        String serviceName = entityClasses.getEntityName().concat("Service");
-//
-//        String content = "public interface " +
-//                serviceName +
-//                "{" +
-//                "void save(" + entityClasses.getDtoClass().getName() + " dto); " +
-//                "\nvoid save(List<" + entityClasses.getDtoClass().getName() + "> dtos); " +
-//                "\nvoid delete(Long id);" + "Optional<" + entityClasses.getDtoClass().getName() + "> findOne(Long id); " +
-//                "\nList<" + entityClasses.getDtoClass().getName() + "> findAll(); " +
-//                "\nList<" + entityClasses.getDtoClass().getName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
-//                "\nPageInfo<" + entityClasses.getDtoClass().getName() + "> pageQuery(" + entityClasses.getQueryClass().getName() + " query); ";
-//
-//        if (entityClasses.createExcelFunctions) {
-//            content += "\nWorkbook downloadTemplate(); " +
-//                    "\nvoid upload(MultipartFile file); " +
-//                    "\nWorkbook download(" + entityClasses.getQueryClass().getName() + " query); ";
-//        }
-//
-//        content += "}";
-//        ClassCreator.of(project).init(serviceName, content)
-//                .importClass(entityClasses.dtoClass)
-//                .importClass("java.util.Optional")
-//                .importClass("java.util.List")
-//                .importClass("com.github.pagehelper.PageInfo")
-//                .importClassIf("Workbook", () -> entityClasses.createExcelFunctions)
-//                .importClassIf("ExcelColumn", () -> entityClasses.createExcelFunctions)
-//                .importClassIf("MultipartFile", () -> entityClasses.createExcelFunctions)
-//                .addTo(entityClasses.serviceDirectory)
-//                .and(serviceClass -> {
-//                    psiUtils.importClass(serviceClass, entityClasses.getQueryClass());
-//                    psiUtils.importClass(serviceClass, entityClasses.getQueryClass());
-//                    createServiceImpl(entityClasses.setServiceClass(serviceClass));
-//                });
+        if (!config.getWithInterface()) {
+            // 不创建接口了
+            createServiceImpl(entityClasses);
+            return;
+        }
 
-        // 不创建接口了
-        createServiceImpl(entityClasses);
+        // 增加服务接口
+        String serviceName = entityClasses.getEntityName().concat("Service");
+
+        String content = "public interface " +
+                serviceName +
+                "{" +
+                "void save(" + entityClasses.getDtoClass().getName() + " dto); " +
+                "\nvoid save(List<" + entityClasses.getDtoClass().getName() + "> dtos); " +
+                "\nvoid delete(Long id);" + "Optional<" + entityClasses.getDtoClass().getName() + "> findOne(Long id); " +
+                "\nList<" + entityClasses.getDtoClass().getName() + "> findAll(); " +
+                "\nList<" + entityClasses.getDtoClass().getName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
+                "\nPageInfo<" + entityClasses.getDtoClass().getName() + "> pageQuery(" + entityClasses.getQueryClass().getName() + " query); ";
+
+        if (config.getExcelFunc()) {
+            content += "\nWorkbook downloadTemplate(); " +
+                    "\nvoid upload(MultipartFile file); " +
+                    "\nWorkbook download(" + entityClasses.getQueryClass().getName() + " query); ";
+        }
+
+        content += "}";
+        ClassCreator.of(project).init(serviceName, content)
+                .importClass(entityClasses.dtoClass)
+                .importClass("java.util.Optional")
+                .importClass("java.util.List")
+                .importClass("com.github.pagehelper.PageInfo")
+                .importClassIf("Workbook", () -> config.getExcelFunc())
+                .importClassIf("ExcelColumn", () -> config.getExcelFunc())
+                .importClassIf("MultipartFile", () -> config.getExcelFunc())
+                .addTo(directoryMap.get("service"))
+                .and(serviceClass -> {
+                    psiUtils.importClass(serviceClass, entityClasses.getQueryClass());
+                    psiUtils.importClass(serviceClass, entityClasses.getQueryClass());
+                    createServiceImpl(entityClasses.setServiceClass(serviceClass));
+                });
     }
 
     /**
      * 创建服务实现类
-     *
-     * @param aClass            实体类
-     * @param repositoryClass   数据库操作类
-     * @param pServiceDirectory 服务类所在目录
-     * @param serviceClass      服务类
      */
     private void createServiceImpl(EntityClasses entityClasses) {
         String serviceName = entityClasses.getServiceClass().getName();
@@ -424,8 +436,13 @@ public class GeneratorAction extends MyAnAction {
         PsiDirectory serviceImplDirectory = directoryMap.get("service");
 
         StringBuilder content = new StringBuilder("@Service public class ")
-                .append(serviceName)
-                .append("{");
+                .append(serviceName);
+        if (config.getWithInterface()) {
+            content.append("Impl implements ")
+                    .append(serviceName);
+        }
+
+        content.append("{");
 
         PsiClass repositoryClass = entityClasses.getRepositoryClass();
         String saveAllMethod = "save";
@@ -453,14 +470,14 @@ public class GeneratorAction extends MyAnAction {
                 .append("if (null != query.getSize() && null != query.getPage()) {PageHelper.startPage(query.getPage(), query.getSize()); }")
                 .append("return new PageInfo<>(").append(daoFieldName).append(".query(query));}");
 
-        if (entityClasses.createExcelFunctions) {
+        if (config.getExcelFunc()) {
             content.append("\nprivate List<ExcelColumn<").append(entityClasses.getDtoClass().getName())
                     .append(">> getExcelColumns(){return ExcelUtils.initColumnsFromClass(").append(entityClasses.dtoClass.getName()).append(".class); }")
                     .append("\n public Workbook downloadTemplate() { return ExcelUtils.createExcelGenerator(getExcelColumns()).getWorkbook();}")
                     .append("\n public void upload(MultipartFile file) {ExcelUtils.createExcelReader(file, getExcelColumns(), ")
-                        .append(entityClasses.getDtoClass().getName()).append(".class).setErrorProcessor(sheet->{}).read(this::save); }")
+                    .append(entityClasses.getDtoClass().getName()).append(".class).setErrorProcessor(sheet->{}).read(this::save); }")
                     .append("\n@Override public Workbook download(").append(entityClasses.getQueryClass().getName()).append(" query) {List<")
-                        .append(entityClasses.getDtoClass().getName()).append("> dataList = query(query); return ExcelUtils.createExcelGenerator(getExcelColumns(), dataList).getWorkbook();} ");
+                    .append(entityClasses.getDtoClass().getName()).append("> dataList = query(query); return ExcelUtils.createExcelGenerator(getExcelColumns(), dataList).getWorkbook();} ");
         }
 
         content.append("}");
@@ -475,10 +492,11 @@ public class GeneratorAction extends MyAnAction {
                 .importClass("PageHelper")
                 .importClass("AbstractBaseEntityService")
                 .importClass("com.github.pagehelper.PageInfo")
-                .importClassIf("ExcelUtils", () -> entityClasses.createExcelFunctions)
-                .importClassIf("Workbook", () -> entityClasses.createExcelFunctions)
-                .importClassIf("ExcelColumn", () -> entityClasses.createExcelFunctions)
-                .importClassIf("MultipartFile", () -> entityClasses.createExcelFunctions)
+                .importClassIf(serviceName, () -> config.getExcelFunc())
+                .importClassIf("ExcelUtils", () -> config.getExcelFunc())
+                .importClassIf("Workbook", () -> config.getExcelFunc())
+                .importClassIf("ExcelColumn", () -> config.getExcelFunc())
+                .importClassIf("MultipartFile", () -> config.getExcelFunc())
                 .addTo(serviceImplDirectory)
                 .and(implClass -> {
                     psiUtils.importClass(implClass, entityClasses.getServiceClass(),
@@ -502,20 +520,7 @@ public class GeneratorAction extends MyAnAction {
         // 先去目录下随便找一个Controller，获取其路径，判断其是否以api开头，从而决定当前路径是否要以api开头
         PsiFile[] files = controllerDirectory.getFiles();
 
-        // 如果一个Controller都没有，则默认以api开头
-        String prefix = "/api/";
-        if (0 != files.length) {
-            for (PsiFile file : files) {
-                if (file instanceof PsiJavaFile) {
-                    Optional<String> value = psiUtils.getAnnotationValue(file, "org.springframework.web.bind.annotation.RequestMapping", "value");
-                    if (value.isPresent()) {
-                        if (!value.get().startsWith("/api")) {
-                            prefix = "/";
-                        }
-                    }
-                }
-            }
-        }
+        String prefix = config.getControllerPrefix();
 
         // 判断是否要加API的注解
         Optional<PsiClass> apiClass = psiUtils.findClass("io.swagger.annotations.Api");
@@ -580,12 +585,12 @@ public class GeneratorAction extends MyAnAction {
                 .append(entityClasses.getQueryClass().getName()).append(" query) { return ").append(entityFieldName).append(
                 "Service.pageQuery(query);}");
 
-        if (entityClasses.createExcelFunctions) {
+        if (config.getExcelFunc()) {
             content.append("@ApiOperation(\"模板下载\") @GetMapping(\"/template-download\") public void " +
                     "downloadTemplate(HttpServletResponse response) {ExcelUtils.writeExcelToResponse(").append(entityServiceName).append(".downloadTemplate(), response, \"template.xlsx\"); }")
                     .append("@ApiOperation(\"数据上传\") @PostMapping(\"/upload\") public void upload(@RequestParam(\"file\")MultipartFile file) {").append(entityServiceName).append(".upload(file);}")
                     .append("@ApiOperation(\"数据下载\") @PostMapping(\"/download\") public void download(@RequestBody ")
-                        .append(entityClasses.getQueryClass().getName()).append(" query, HttpServletResponse response) { ExcelUtils.writeExcelToResponse(").append(entityServiceName).append(".download(query), response, \"data.xlsx\"); }");
+                    .append(entityClasses.getQueryClass().getName()).append(" query, HttpServletResponse response) { ExcelUtils.writeExcelToResponse(").append(entityServiceName).append(".download(query), response, \"data.xlsx\"); }");
         }
 
         content.append("}");
@@ -605,9 +610,9 @@ public class GeneratorAction extends MyAnAction {
                 .importClass("PathVariable")
                 .importClass("RequestParam")
                 .importClass("com.github.pagehelper.PageInfo")
-                .importClassIf("HttpServletResponse", () -> entityClasses.createExcelFunctions)
-                .importClassIf("ExcelUtils", () -> entityClasses.createExcelFunctions)
-                .importClassIf("MultipartFile", () -> entityClasses.createExcelFunctions)
+                .importClassIf("HttpServletResponse", () -> config.getExcelFunc())
+                .importClassIf("ExcelUtils", () -> config.getExcelFunc())
+                .importClassIf("MultipartFile", () -> config.getExcelFunc())
                 .importClassIf(() -> pBaseClassOptional.get().getName(), pBaseClassOptional::isPresent)
                 .addTo(controllerDirectory)
                 .and(controllerClass -> {
@@ -618,8 +623,6 @@ public class GeneratorAction extends MyAnAction {
 
     /**
      * 创建Repository
-     *
-     * @param aClass 实体类名称
      */
     private void createRepository(EntityClasses entityClasses) {
         String entityName = entityClasses.getEntityName();
@@ -638,8 +641,6 @@ public class GeneratorAction extends MyAnAction {
 
     /**
      * 获取BaseRepository，如果没有这个类则创建一个
-     *
-     * @return 获取或创建的BaseRepository
      */
     private void getBaseRepositoryClass(
             PsiDirectory repositoryDiresctory,
@@ -670,7 +671,6 @@ public class GeneratorAction extends MyAnAction {
         private PsiClass controllerClass;
         private PsiClass queryClass;
         private PsiClass daoClass;
-        private Boolean createExcelFunctions = false;
 
         PsiClass getEntityClass() {
             return entityClass;
@@ -759,15 +759,6 @@ public class GeneratorAction extends MyAnAction {
 
         EntityClasses setDaoClass(PsiClass daoClass) {
             this.daoClass = daoClass;
-            return this;
-        }
-
-        public Boolean getCreateExcelFunctions() {
-            return createExcelFunctions;
-        }
-
-        public EntityClasses setCreateExcelFunctions(Boolean createExcelFunctions) {
-            this.createExcelFunctions = createExcelFunctions;
             return this;
         }
     }
