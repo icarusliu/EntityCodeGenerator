@@ -216,7 +216,7 @@ public class GeneratorAction extends MyAnAction {
                 .isPresent();
 
         StringBuilder content = new StringBuilder()
-                .append("public class")
+                .append("public class ")
                 .append(entityClasses.getEntityName())
                 .append("Query ");
 
@@ -228,10 +228,15 @@ public class GeneratorAction extends MyAnAction {
 
         // 先创建Query对象
         PsiDirectory queryDirectory = directoryMap.get("query");
-        ClassCreator.of(project)
-                .init(entityClasses.getEntityName() + "Query", content.toString())
-                .addGetterAndSetterMethods()
-                .addTo(queryDirectory)
+        ClassCreator creator = ClassCreator.of(project)
+                .init(entityClasses.getEntityName() + "Query", content.toString());
+        if (!baseQueryExists) {
+            creator.addGetterAndSetterMethods();
+        } else {
+            creator.importClass("BaseQuery");
+        }
+
+        creator.addTo(queryDirectory)
                 .and(queryClass -> {
                     entityClasses.setQueryClass(queryClass);
 
@@ -431,7 +436,7 @@ public class GeneratorAction extends MyAnAction {
      * 创建服务实现类
      */
     private void createServiceImpl(EntityClasses entityClasses) {
-        String serviceName = entityClasses.getServiceClass().getName();
+        String serviceName = entityClasses.getEntityName().concat("Service");
         // 增加接口服务实现
         PsiDirectory serviceImplDirectory = directoryMap.get("service");
 
