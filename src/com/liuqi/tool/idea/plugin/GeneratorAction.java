@@ -460,8 +460,8 @@ public class GeneratorAction extends MyAnAction {
             content.append("Impl ");
         }
         if (config.getWithSuper()) {
-            content.append("extends ")
-                    .append(config.getSuperService())
+            content.append(" extends ")
+                    .append(config.getSuperService().substring(config.getSuperService().lastIndexOf(".") + 1))
                     .append("<").append(entityClasses.getEntityClassName())
                     .append(",").append(entityClasses.getDtoClass().getName())
                     .append(",").append(entityClasses.getQueryClass().getName())
@@ -478,13 +478,7 @@ public class GeneratorAction extends MyAnAction {
 
         content.append("{");
 
-        if (config.getWithSuper()) {
-            content.append("public ").append(serviceName).append(config.getWithInterface() ? "Impl" : "")
-                    .append("(").append(entityClasses.getRepositoryClass().getName()).append(" repository")
-                    .append(",").append(entityClasses.getMapperClass().getName()).append(" mapper")
-                    .append(",").append(entityClasses.getDaoClass().getName()).append(" dao){")
-                    .append("super(repository, mapper, dao); }");
-        } else {
+        if (!config.getWithSuper()) {
             PsiClass repositoryClass = entityClasses.getRepositoryClass();
             String saveAllMethod = "save";
             if (0 != repositoryClass.findMethodsByName("saveAll", true).length) {
@@ -600,10 +594,7 @@ public class GeneratorAction extends MyAnAction {
                     .append("> {");
         }
 
-        if (config.getWithSuper()) {
-            content.append("public ").append(entityName).append(prefix).append("(").append(entityClasses.getServiceImplClass().getName())
-                    .append(" entityService) {super(entityService);}");
-        } else {
+        if (!config.getWithSuper()) {
             String entityFieldName = MyStringUtils.firstLetterToLower(entityName);
             String entityServiceName = entityFieldName + "Service";
 
