@@ -561,25 +561,13 @@ public class GeneratorAction extends MyAnAction {
         // 在Service同目录下获取controller或者web目录
         PsiDirectory controllerDirectory = directoryMap.get("web/rest");
 
-        // 先去目录下随便找一个Controller，获取其路径，判断其是否以api开头，从而决定当前路径是否要以api开头
-        PsiFile[] files = controllerDirectory.getFiles();
-
         String prefix = config.getControllerPrefix();
 
         // 判断是否要加API的注解
         Optional<PsiClass> apiClass = psiUtils.findClass("io.swagger.annotations.Api");
         boolean useAPI = apiClass.isPresent();
 
-        // 检查是否有名称为BaseController或者BaseResource的类
-        Optional<PsiClass> baseClassOptional = psiUtils.findClass("BaseController");
         String suffix = "Controller";
-        if (!baseClassOptional.isPresent()) {
-            baseClassOptional = psiUtils.findClass("BaseResource");
-            suffix = "Resource";
-            if (!baseClassOptional.isPresent()) {
-                suffix = "Controller";
-            }
-        }
 
         String entityName = entityClasses.getEntityName();
         String controllerPath = Arrays.stream(StringUtils.splitByCharacterTypeCamelCase(entityName))
@@ -603,38 +591,46 @@ public class GeneratorAction extends MyAnAction {
                 .append(entityName)
                 .append(suffix);
 
-        baseClassOptional.ifPresent(psiClass -> content.append(" extends ")
-                .append(psiClass.getName()));
+        if (config.getWithSuper()) {
+            content.append(" extends ")
+                    .append(config.getSuperController())
+                    .append("<").append(entityClasses.getDtoClass().getName())
+                    .append(",").append(entityClasses.getQueryClass().getName())
+                    .append(",").append(entityClasses.getServiceImplClass().getName())
+                    .append("> {");
+        }
 
-        Optional<PsiClass> pBaseClassOptional = baseClassOptional;
+        if (config.getWithSuper()) {
+            content.append("public ").append(entityName).append(prefix).append("(").append(entityClasses.getServiceImplClass().getName())
+                    .append(" entityService) {super(entityService);}");
+        } else {
+            String entityFieldName = MyStringUtils.firstLetterToLower(entityName);
+            String entityServiceName = entityFieldName + "Service";
 
-        String entityFieldName = MyStringUtils.firstLetterToLower(entityName);
-        String entityServiceName = entityFieldName + "Service";
+            content.append("@Resource private ")
+                    .append(entityClasses.getServiceClass().getName())
+                    .append(" ")
+                    .append(entityFieldName)
+                    .append("Service; ")
+                    .append("@ApiOperation(\"保存\") @PostMapping(\"/save\")")
+                    .append("public void save(@RequestBody  ").append(entityClasses.getDtoClass().getName()).append(" ").append(entityFieldName).append(") { ")
+                    .append(entityServiceName).append(".save(").append(entityFieldName).append("); }")
+                    .append("@ApiOperation(\"根据主键删除\")  @DeleteMapping(\"/delete/{id}\") public void delete(@PathVariable(\"id\") Long id) {").append(
+                    entityServiceName).append(".delete(id);}")
+                    .append("@ApiOperation(\"查找所有数据\") @GetMapping(\"/list\") public List<").append(entityClasses.getDtoClass().getName()).append(
+                    "> list() { return ").append(entityServiceName).append(".findAll(); }")
+                    .append("@ApiOperation(\"分页查询\") @PostMapping(\"/page-query\") public PageInfo<").append(entityClasses.getDtoClass().getName()).append(
+                    "> pageQuery(@RequestBody ")
+                    .append(entityClasses.getQueryClass().getName()).append(" query) { return ").append(entityFieldName).append(
+                    "Service.pageQuery(query);}");
 
-        content.append("{")
-                .append("@Resource private ")
-                .append(entityClasses.getServiceClass().getName())
-                .append(" ")
-                .append(entityFieldName)
-                .append("Service; ")
-                .append("@ApiOperation(\"保存\") @PostMapping(\"/save\")")
-                .append("public void save(@RequestBody  ").append(entityClasses.getDtoClass().getName()).append(" ").append(entityFieldName).append(") { ")
-                .append(entityServiceName).append(".save(").append(entityFieldName).append("); }")
-                .append("@ApiOperation(\"根据主键删除\")  @DeleteMapping(\"/delete/{id}\") public void delete(@PathVariable(\"id\") Long id) {").append(
-                entityServiceName).append(".delete(id);}")
-                .append("@ApiOperation(\"查找所有数据\") @GetMapping(\"/list\") public List<").append(entityClasses.getDtoClass().getName()).append(
-                "> list() { return ").append(entityServiceName).append(".findAll(); }")
-                .append("@ApiOperation(\"分页查询\") @PostMapping(\"/page-query\") public PageInfo<").append(entityClasses.getDtoClass().getName()).append(
-                "> pageQuery(@RequestBody ")
-                .append(entityClasses.getQueryClass().getName()).append(" query) { return ").append(entityFieldName).append(
-                "Service.pageQuery(query);}");
-
-        if (config.getExcelFunc()) {
-            content.append("@ApiOperation(\"模板下载\") @GetMapping(\"/template-download\") public void " +
-                    "downloadTemplate(HttpServletResponse response) {ExcelUtils.writeExcelToResponse(").append(entityServiceName).append(".downloadTemplate(), response, \"template.xlsx\"); }")
-                    .append("@ApiOperation(\"数据上传\") @PostMapping(\"/upload\") public void upload(@RequestParam(\"file\")MultipartFile file) {").append(entityServiceName).append(".upload(file);}")
-                    .append("@ApiOperation(\"数据下载\") @PostMapping(\"/download\") public void download(@RequestBody ")
-                    .append(entityClasses.getQueryClass().getName()).append(" query, HttpServletResponse response) { ExcelUtils.writeExcelToResponse(").append(entityServiceName).append(".download(query), response, \"data.xlsx\"); }");
+            if (config.getExcelFunc()) {
+                content.append("@ApiOperation(\"模板下载\") @GetMapping(\"/template-download\") public void " +
+                        "downloadTemplate(HttpServletResponse response) {ExcelUtils.writeExcelToResponse(").append(entityServiceName).append(".downloadTemplate(), response, \"template.xlsx\"); }")
+                        .append("@ApiOperation(\"数据上传\") @PostMapping(\"/upload\") public void upload(@RequestParam(\"file\")MultipartFile file) {").append(entityServiceName).append(".upload(file);}")
+                        .append("@ApiOperation(\"数据下载\") @PostMapping(\"/download\") public void download(@RequestBody ")
+                        .append(entityClasses.getQueryClass().getName()).append(" query, HttpServletResponse response) { ExcelUtils.writeExcelToResponse(").append(entityServiceName).append(".download(query), response, \"data.xlsx\"); }");
+            }
         }
 
         content.append("}");
@@ -657,7 +653,7 @@ public class GeneratorAction extends MyAnAction {
                 .importClassIf("HttpServletResponse", () -> config.getExcelFunc())
                 .importClassIf("ExcelUtils", () -> config.getExcelFunc())
                 .importClassIf("MultipartFile", () -> config.getExcelFunc())
-                .importClassIf(() -> pBaseClassOptional.get().getName(), pBaseClassOptional::isPresent)
+                .importClassIf(config.getSuperController(), () -> config.getWithSuper())
                 .addTo(controllerDirectory)
                 .and(controllerClass -> {
                     psiUtils.importClass(controllerClass, entityClasses.getDtoClass(), entityClasses.getServiceClass(),
