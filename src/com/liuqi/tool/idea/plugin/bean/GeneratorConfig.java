@@ -2,6 +2,7 @@ package com.liuqi.tool.idea.plugin.bean;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.PropertiesUtil;
+import com.intellij.psi.PsiClass;
 
 import java.io.File;
 import java.io.FileReader;
@@ -42,6 +43,18 @@ public class GeneratorConfig {
                         case "controller.prefix":
                             config.setControllerPrefix(v);
                             break;
+                        case "common.super":
+                            config.setWithSuper(Boolean.parseBoolean(v));
+                            break;
+                        case "common.super.service":
+                            config.setSuperService(v);
+                            break;
+                        case "common.super.controller":
+                            config.setSuperController(v);
+                            break;
+                        case "common.super.dao":
+                            config.setSuperDao(v);
+                            break;
                     }
                 });
             } catch (IOException e) {
@@ -78,6 +91,11 @@ public class GeneratorConfig {
      */
     private String controllerPrefix = "/api";
 
+    private Boolean withSuper = false;
+    private String superService;
+    private String superController;
+    private String superDao;
+
     public Boolean getExcelFunc() {
         return excelFunc;
     }
@@ -103,5 +121,72 @@ public class GeneratorConfig {
     public GeneratorConfig setControllerPrefix(String controllerPrefix) {
         this.controllerPrefix = controllerPrefix;
         return this;
+    }
+
+    public GeneratorConfig excelFunc(Boolean excelFunc) {
+        this.excelFunc = excelFunc;
+        return this;
+    }
+
+    public GeneratorConfig withInterface(Boolean withInterface) {
+        this.withInterface = withInterface;
+        return this;
+    }
+
+    public GeneratorConfig controllerPrefix(String controllerPrefix) {
+        this.controllerPrefix = controllerPrefix;
+        return this;
+    }
+
+    public GeneratorConfig withSuper(Boolean withSuper) {
+        this.withSuper = withSuper;
+        return this;
+    }
+
+    public void setWithSuper(Boolean withSuper) {
+        this.withSuper = withSuper;
+    }
+
+    public Boolean getWithSuper() {
+        return this.withSuper;
+    }
+
+    public GeneratorConfig superService(String superService) {
+        this.superService = superService;
+        return this;
+    }
+
+    public void setSuperService(String superService) {
+        this.superService = superService;
+    }
+
+    public String getSuperService() {
+        return this.superService;
+    }
+
+    public GeneratorConfig superController(String superController) {
+        this.superController = superController;
+        return this;
+    }
+
+    public void setSuperController(String superController) {
+        this.superController = superController;
+    }
+
+    public String getSuperController() {
+        return this.superController;
+    }
+
+    public GeneratorConfig superDao(String superDao) {
+        this.superDao = superDao;
+        return this;
+    }
+
+    public void setSuperDao(String superDao) {
+        this.superDao = superDao;
+    }
+
+    public String getSuperDao() {
+        return this.superDao;
     }
 }

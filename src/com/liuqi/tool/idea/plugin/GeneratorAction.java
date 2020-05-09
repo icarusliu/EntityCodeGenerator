@@ -253,19 +253,33 @@ public class GeneratorAction extends MyAnAction {
     private void createDao(EntityClasses entityClasses) {
         PsiDirectory daoDirectory = directoryMap.get("dao");
 
-        ClassCreator.of(project).init(entityClasses.getEntityName() + "Dao",
-                "@Mapper public interface " + entityClasses.getEntityName() + "Dao {" +
-                        "List<" + entityClasses.getDtoClass().getName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
-                        "void batchAdd(@Param(\"list\") List<" + entityClasses.getDtoClass().getName() + "> dataList);" +
-                        "}")
-                .importClass("java.util.List")
-                .importClass("org.apache.ibatis.annotations.Mapper")
-                .importClass("org.apache.ibatis.annotations.Param")
-                .addTo(daoDirectory)
-                .and(daoClass -> {
-                    psiUtils.importClass(daoClass, entityClasses.getQueryClass(), entityClasses.getDtoClass());
-                    createDaoMappingFile(entityClasses.setDaoClass(daoClass));
-                });
+        if (config.getWithSuper()) {
+            ClassCreator.of(project).init(entityClasses.getEntityName() + "Dao",
+                    "@Mapper public interface " + entityClasses.getEntityName() + "Dao extends " + config.getSuperDao() + "" +
+                            "<" + entityClasses.getDtoClass().getName() + ", " + entityClasses.getQueryClass().getName() + ">" +
+                            "{}")
+                    .importClass("org.apache.ibatis.annotations.Mapper")
+                    .importClass(config.getSuperDao())
+                    .addTo(daoDirectory)
+                    .and(daoClass -> {
+                        psiUtils.importClass(daoClass, entityClasses.getQueryClass(), entityClasses.getDtoClass());
+                        createDaoMappingFile(entityClasses.setDaoClass(daoClass));
+                    });
+        } else {
+            ClassCreator.of(project).init(entityClasses.getEntityName() + "Dao",
+                    "@Mapper public interface " + entityClasses.getEntityName() + "Dao {" +
+                            "List<" + entityClasses.getDtoClass().getName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
+                            "void batchAdd(@Param(\"list\") List<" + entityClasses.getDtoClass().getName() + "> dataList);" +
+                            "}")
+                    .importClass("java.util.List")
+                    .importClass("org.apache.ibatis.annotations.Mapper")
+                    .importClass("org.apache.ibatis.annotations.Param")
+                    .addTo(daoDirectory)
+                    .and(daoClass -> {
+                        psiUtils.importClass(daoClass, entityClasses.getQueryClass(), entityClasses.getDtoClass());
+                        createDaoMappingFile(entityClasses.setDaoClass(daoClass));
+                    });
+        }
     }
 
     /**
@@ -443,60 +457,85 @@ public class GeneratorAction extends MyAnAction {
         StringBuilder content = new StringBuilder("@Service public class ")
                 .append(serviceName);
         if (config.getWithInterface()) {
-            content.append("Impl implements ")
+            content.append("Impl ");
+        }
+        if (config.getWithSuper()) {
+            content.append("extends ")
+                    .append(config.getSuperService())
+                    .append("<").append(entityClasses.getEntityClassName())
+                    .append(",").append(entityClasses.getDtoClass().getName())
+                    .append(",").append(entityClasses.getQueryClass().getName())
+                    .append(",").append(entityClasses.getRepositoryClass().getName())
+                    .append(",").append(entityClasses.getDaoClass().getName())
+                    .append(",").append(entityClasses.getMapperClass().getName())
+                    .append("> ");
+        }
+
+        if (config.getWithInterface()) {
+            content.append("implements ")
                     .append(serviceName);
         }
 
         content.append("{");
 
-        PsiClass repositoryClass = entityClasses.getRepositoryClass();
-        String saveAllMethod = "save";
-        if (0 != repositoryClass.findMethodsByName("saveAll", true).length) {
-            saveAllMethod = "saveAll";
+        if (config.getWithSuper()) {
+            content.append("public ").append(serviceName).append(config.getWithInterface() ? "Impl" : "")
+                    .append("(").append(entityClasses.getRepositoryClass().getName()).append(" repository")
+                    .append(",").append(entityClasses.getMapperClass().getName()).append(" mapper")
+                    .append(",").append(entityClasses.getDaoClass().getName()).append(" dao){")
+                    .append("super(repository, mapper, dao); }");
+        } else {
+            PsiClass repositoryClass = entityClasses.getRepositoryClass();
+            String saveAllMethod = "save";
+            if (0 != repositoryClass.findMethodsByName("saveAll", true).length) {
+                saveAllMethod = "saveAll";
+            }
+
+            String daoFieldName = StringUtils.uncapitalize(entityClasses.getDaoClass().getName());
+
+            content.append("@Resource private ").append(entityClasses.getMapperClass().getName()).append(" mapper; \n")
+                    .append("\n@Resource private ").append(entityClasses.getRepositoryClass().getName()).append(" repository; \n")
+                    .append("\n@Resource private ").append(entityClasses.getDaoClass().getName()).append(" ").append(daoFieldName).append("; \n")
+                    .append("\n @Transactional public void save(").append(entityClasses.getDtoClass().getName()).append(" dto) { repository.save(mapper.toEntity(dto));}")
+                    .append("\n @Transactional  public void save(List<").append(entityClasses.getDtoClass().getName()).append("> dtos) { repository.").append(
+                    saveAllMethod).append("(mapper.toEntity(dtos)); }")
+                    .append("\n @Transactional  public void delete(Long id) { repository.delete(id); }")
+                    .append("\n @Transactional(readOnly = true)  public Optional<").append(entityClasses.getDtoClass().getName()).append(
+                    "> findOne(Long id) { return Optional.ofNullable(mapper.toDto(repository.findOne(id))); }")
+                    .append("\n @Transactional(readOnly = true) public List<").append(entityClasses.getDtoClass().getName()).append(
+                    "> findAll() { return mapper.toDto(repository.findAll()); }")
+                    .append("\n @Transactional(readOnly = true) public List<").append(entityClasses.getDtoClass().getName()).append("> query(")
+                    .append(entityClasses.getQueryClass().getName()).append(" query) { return ").append(daoFieldName).append(".query(query);}")
+                    .append("\n @Transactional(readOnly = true) public PageInfo<").append(entityClasses.getDtoClass().getName()).append("> pageQuery(").append(
+                    entityClasses.getQueryClass().getName()).append(" query) {")
+                    .append("if (null != query.getSize() && null != query.getPage()) {PageHelper.startPage(query.getPage(), query.getSize()); }")
+                    .append("return new PageInfo<>(").append(daoFieldName).append(".query(query));}");
+
+            if (config.getExcelFunc()) {
+                content.append("\nprivate List<ExcelColumn<").append(entityClasses.getDtoClass().getName())
+                        .append(">> getExcelColumns(){return ExcelUtils.initColumnsFromClass(").append(entityClasses.dtoClass.getName()).append(".class); }")
+                        .append("\n public Workbook downloadTemplate() { return ExcelUtils.createExcelGenerator(getExcelColumns()).getWorkbook();}")
+                        .append("\n public void upload(MultipartFile file) {ExcelUtils.createExcelReader(file, getExcelColumns(), ")
+                        .append(entityClasses.getDtoClass().getName()).append(".class).setErrorProcessor(sheet->{}).read(this::save); }")
+                        .append("\n@Override public Workbook download(").append(entityClasses.getQueryClass().getName()).append(" query) {List<")
+                        .append(entityClasses.getDtoClass().getName()).append("> dataList = query(query); return ExcelUtils.createExcelGenerator(getExcelColumns(), dataList).getWorkbook();} ");
+            }
         }
 
-        String daoFieldName = StringUtils.uncapitalize(entityClasses.getDaoClass().getName());
-
-        content.append("@Resource private ").append(entityClasses.getMapperClass().getName()).append(" mapper; \n")
-                .append("\n@Resource private ").append(entityClasses.getRepositoryClass().getName()).append(" repository; \n")
-                .append("\n@Resource private ").append(entityClasses.getDaoClass().getName()).append(" ").append(daoFieldName).append("; \n")
-                .append("\n @Transactional public void save(").append(entityClasses.getDtoClass().getName()).append(" dto) { repository.save(mapper.toEntity(dto));}")
-                .append("\n @Transactional  public void save(List<").append(entityClasses.getDtoClass().getName()).append("> dtos) { repository.").append(
-                saveAllMethod).append("(mapper.toEntity(dtos)); }")
-                .append("\n @Transactional  public void delete(Long id) { repository.delete(id); }")
-                .append("\n @Transactional(readOnly = true)  public Optional<").append(entityClasses.getDtoClass().getName()).append(
-                "> findOne(Long id) { return Optional.ofNullable(mapper.toDto(repository.findOne(id))); }")
-                .append("\n @Transactional(readOnly = true) public List<").append(entityClasses.getDtoClass().getName()).append(
-                "> findAll() { return mapper.toDto(repository.findAll()); }")
-                .append("\n @Transactional(readOnly = true) public List<").append(entityClasses.getDtoClass().getName()).append("> query(")
-                .append(entityClasses.getQueryClass().getName()).append(" query) { return ").append(daoFieldName).append(".query(query);}")
-                .append("\n @Transactional(readOnly = true) public PageInfo<").append(entityClasses.getDtoClass().getName()).append("> pageQuery(").append(
-                entityClasses.getQueryClass().getName()).append(" query) {")
-                .append("if (null != query.getSize() && null != query.getPage()) {PageHelper.startPage(query.getPage(), query.getSize()); }")
-                .append("return new PageInfo<>(").append(daoFieldName).append(".query(query));}");
-
-        if (config.getExcelFunc()) {
-            content.append("\nprivate List<ExcelColumn<").append(entityClasses.getDtoClass().getName())
-                    .append(">> getExcelColumns(){return ExcelUtils.initColumnsFromClass(").append(entityClasses.dtoClass.getName()).append(".class); }")
-                    .append("\n public Workbook downloadTemplate() { return ExcelUtils.createExcelGenerator(getExcelColumns()).getWorkbook();}")
-                    .append("\n public void upload(MultipartFile file) {ExcelUtils.createExcelReader(file, getExcelColumns(), ")
-                    .append(entityClasses.getDtoClass().getName()).append(".class).setErrorProcessor(sheet->{}).read(this::save); }")
-                    .append("\n@Override public Workbook download(").append(entityClasses.getQueryClass().getName()).append(" query) {List<")
-                    .append(entityClasses.getDtoClass().getName()).append("> dataList = query(query); return ExcelUtils.createExcelGenerator(getExcelColumns(), dataList).getWorkbook();} ");
-        }
 
         content.append("}");
 
-        ClassCreator.of(project).init(serviceName, content.toString())
+        ClassCreator.of(project).init(serviceName + (config.getWithInterface() ? "Impl" : ""), content.toString())
                 .importClass(entityClasses.getEntityClass())
                 .importClass("javax.annotation.Resource")
                 .importClass("org.springframework.stereotype.Service")
-                .importClass("Transactional")
-                .importClass("java.util.Optional")
-                .importClass("java.util.List")
-                .importClass("PageHelper")
+                .importClassIf("Transactional", () -> config.getWithInterface())
+                .importClassIf("java.util.Optional", () -> config.getWithInterface())
+                .importClassIf("java.util.List", () -> config.getWithInterface())
+                .importClassIf("PageHelper", () -> config.getWithInterface())
+                .importClassIf(config.getSuperService(), () -> config.getWithSuper())
                 .importClass("AbstractBaseEntityService")
-                .importClass("com.github.pagehelper.PageInfo")
+                .importClassIf("com.github.pagehelper.PageInfo", () -> config.getWithInterface())
                 .importClassIf(serviceName, () -> config.getExcelFunc())
                 .importClassIf("ExcelUtils", () -> config.getExcelFunc())
                 .importClassIf("Workbook", () -> config.getExcelFunc())
