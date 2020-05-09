@@ -537,6 +537,8 @@ public class GeneratorAction extends MyAnAction {
                 .importClassIf("MultipartFile", () -> config.getExcelFunc())
                 .addTo(serviceImplDirectory)
                 .and(implClass -> {
+                    entityClasses.setServiceImplClass(implClass);
+
                     psiUtils.importClass(implClass, entityClasses.getServiceClass(),
                             entityClasses.getRepositoryClass(), entityClasses.getMapperClass(), entityClasses.getDtoClass(),
                             entityClasses.getQueryClass(),
@@ -553,7 +555,7 @@ public class GeneratorAction extends MyAnAction {
      */
     private void createController(EntityClasses entityClasses) {
         // 在Service同目录下获取controller或者web目录
-        PsiDirectory controllerDirectory = directoryMap.get("web/rest");
+        PsiDirectory controllerDirectory = directoryMap.get("rest");
 
         String prefix = config.getControllerPrefix();
 
@@ -571,6 +573,7 @@ public class GeneratorAction extends MyAnAction {
         StringBuilder content = new StringBuilder();
         content.append("@RequestMapping(\"")
                 .append(prefix)
+                .append("/")
                 .append(controllerPath)
                 .append("\")")
                 .append("@RestController");
@@ -641,6 +644,7 @@ public class GeneratorAction extends MyAnAction {
                 .importClass("PathVariable")
                 .importClass("RequestParam")
                 .importClass("com.github.pagehelper.PageInfo")
+                .importClassIf(entityClasses.getServiceImplClass().getName(), () -> config.getWithSuper())
                 .importClassIf("HttpServletResponse", () -> config.getExcelFunc())
                 .importClassIf("ExcelUtils", () -> config.getExcelFunc())
                 .importClassIf("MultipartFile", () -> config.getExcelFunc())

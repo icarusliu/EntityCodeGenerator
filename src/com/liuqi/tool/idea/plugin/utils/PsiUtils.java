@@ -33,6 +33,10 @@ public class PsiUtils {
 
     public void importClass(PsiClass srcClass, PsiClass... toImportClasses) {
         for (PsiClass toImportClass : toImportClasses) {
+            if (null == toImportClass) {
+                continue;
+            }
+
             ((PsiJavaFile) srcClass.getContainingFile()).importClass(toImportClass);
         }
     }
