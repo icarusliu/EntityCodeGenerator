@@ -377,6 +377,12 @@ public class GeneratorAction extends MyAnAction {
                     .append("<include refid=\"columns\"/>")
                     .append("</select>");
 
+            content.append("<select id=\"findAll\" parameterType=\"")
+                    .append(psiUtils.getPackageAndName(entityClasses.getQueryClass()))
+                    .append("\" resultMap=\"resultMap\">")
+                    .append("<include refid=\"columns\"/>")
+                    .append("</select>");
+
             // 增加批量新增语句
             content.append("<insert id=\"batchAdd\" parameterType=\"")
                     .append(psiUtils.getPackageAndName(entityClasses.getDtoClass()))
