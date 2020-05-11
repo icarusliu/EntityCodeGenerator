@@ -41,6 +41,7 @@ public class GeneratorAction extends MyAnAction {
     private PsiDirectory workDir;
     private Map<String, PsiDirectory> directoryMap = new HashMap<>(16);
     private GeneratorConfig config;
+    private Comment comment = new Comment();
 
     @Override
     public synchronized void actionPerformed(@NotNull AnActionEvent anActionEvent) {
@@ -65,6 +66,7 @@ public class GeneratorAction extends MyAnAction {
         // 加载所有目录
         initDirs();
         entityClasses.setEntityClass(aClass);
+        comment.text = aClass.getDocComment().getText();
 
         // 在它所在包的同级的repository中创建Repository
         WriteCommandAction.runWriteCommandAction(project, () ->
@@ -796,6 +798,11 @@ public class GeneratorAction extends MyAnAction {
             this.daoClass = daoClass;
             return this;
         }
+    }
+
+    private static final class Comment {
+        private String text;
+        private String author;
     }
 
     public static void main(String[] args) {
