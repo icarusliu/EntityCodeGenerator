@@ -70,7 +70,7 @@ public class GeneratorAction extends MyAnAction {
         entityClasses.setEntityClass(aClass);
 
         // 加载注释信息
-        PsiAnnotation commentAnnotation = aClass.getAnnotation("Comment");
+        PsiAnnotation commentAnnotation = aClass.getAnnotation("com.liuqi.common.web.common.annotation.Comment");
         if (null != commentAnnotation) {
             String value = psiUtils.getAnnotationValue(commentAnnotation, "value")
                     .orElseGet(() -> psiUtils.getAnnotationValue(commentAnnotation, "entityName").orElse(""));
