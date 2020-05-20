@@ -89,7 +89,6 @@ class ClassCreator {
         PsiElementFactory elementFactory = PsiElementFactory.SERVICE.getInstance(project);
         for (PsiField field : srcClass.getFields()) {
             String name = field.getName();
-            assert name != null;
             PsiType type = field.getType();
 
             psiUtils.findClass(type.getCanonicalText()).ifPresent(typeClass -> psiUtils.importClass(aClass, typeClass));
@@ -101,7 +100,7 @@ class ClassCreator {
 
             // 添加校验注解
             PsiAnnotation psiAnnotation = field.getAnnotation("javax.persistence.Column");
-            StringBuilder annotationStringBuilder = new StringBuilder();
+            StringBuilder annotationStringBuilder = new StringBuilder("\n");
             if (null != psiAnnotation) {
                 PsiAnnotationMemberValue memberValue = psiAnnotation.findAttributeValue("columnDefinition");
                 if (null != memberValue) {
@@ -124,7 +123,7 @@ class ClassCreator {
                     }
 
                     // 如果是not null，需要加上NotNull校验 javax.validation.constraints
-                    if (str.contains("not null")) {
+                    if (str.contains("not null") && !typeName.toLowerCase().contains("type")) {
                         if (typeName.equals("String")) {
                             annotationStringBuilder.append("@NotBlank ");
                             importClass("org.hibernate.validator.constraints.NotBlank");
@@ -134,6 +133,12 @@ class ClassCreator {
                         }
                     }
                 }
+            }
+
+            if (typeName.toLowerCase().equals("localdate")) {
+                annotationStringBuilder.append(" @JsonFormat(pattern = \"yyyy-MM-dd\") \n");
+            } else if (typeName.toLowerCase().equals("localdatetime")) {
+                annotationStringBuilder.append(" @JsonFormat(pattern = \"yyyy-MM-dd HH:mm:ss\") \n");
             }
 
             PsiField cField = elementFactory.createFieldFromText(annotationStringBuilder.toString() + "private " + typeName + " " + name + ";", null);

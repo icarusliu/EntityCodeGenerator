@@ -21,7 +21,7 @@ public class MyStringUtils {
     }
 
     public static String toUnderLineStr(String str) {
-        return Arrays.stream(Objects.requireNonNull(org.apache.commons.lang3.StringUtils.splitByCharacterTypeCamelCase(str)))
-                .reduce((s1, s2) -> s1.toLowerCase().concat("_").concat(s2.toLowerCase())).orElse("");
+        return firstLetterToLower(Arrays.stream(Objects.requireNonNull(org.apache.commons.lang3.StringUtils.splitByCharacterTypeCamelCase(str)))
+                .reduce((s1, s2) -> s1.toLowerCase().concat("_").concat(s2.toLowerCase())).orElse(""));
     }
 }
