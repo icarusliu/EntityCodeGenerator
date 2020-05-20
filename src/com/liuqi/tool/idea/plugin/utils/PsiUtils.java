@@ -56,6 +56,17 @@ public class PsiUtils {
         }).orElse(Optional.empty());
     }
 
+    public Optional<String> getAnnotationValue(PsiAnnotation annotation, String field) {
+        return Optional.ofNullable(annotation).map(a -> {
+            PsiAnnotationMemberValue value = a.findAttributeValue(field);
+            if (null != value) {
+                return Optional.of(value.getText());
+            } else {
+                return Optional.<String>empty();
+            }
+        }).orElse(Optional.empty());
+    }
+
     public Optional<String> getAnnotationValue(PsiFile psiFile, String annotation, String field) {
         return getAnnotationValue(((PsiJavaFile)psiFile).getClasses()[0], annotation, field);
     }

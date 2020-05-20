@@ -15,6 +15,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Consumer;
 
@@ -66,7 +68,15 @@ public class GeneratorAction extends MyAnAction {
         // 加载所有目录
         initDirs();
         entityClasses.setEntityClass(aClass);
-        comment.text = aClass.getDocComment().getText();
+
+        // 加载注释信息
+        PsiAnnotation commentAnnotation = aClass.getAnnotation("Comment");
+        if (null != commentAnnotation) {
+            String value = psiUtils.getAnnotationValue(commentAnnotation, "value")
+                    .orElseGet(() -> psiUtils.getAnnotationValue(commentAnnotation, "entityName").orElse(""));
+            comment.text = value;
+            comment.author = psiUtils.getAnnotationValue(commentAnnotation, "author").orElse("EntityCodeGeneratoo");
+        }
 
         // 在它所在包的同级的repository中创建Repository
         WriteCommandAction.runWriteCommandAction(project, () ->
@@ -118,7 +128,7 @@ public class GeneratorAction extends MyAnAction {
         // 先检查是否存在AbstractBaseDTO对象，如果存在的话DTO对象需要继承自该对象
         Optional<PsiClass> abstractBaseDTOOptional = psiUtils.findClass("AbstractBaseDTO");
 
-        String dtoContent = "public class " + entityName + "DTO";
+        String dtoContent = comment.getContent("对象") + "\npublic class " + entityName + "DTO";
         boolean extendFromBaseDTO = false;
         for (PsiClassType extendsListType : entityClasses.getEntityClass().getExtendsListTypes()) {
             extendFromBaseDTO = extendsListType.getName().contains("AbstractBaseEntity");
@@ -177,7 +187,7 @@ public class GeneratorAction extends MyAnAction {
         Consumer<PsiClass> createMapperFunction = entityMapperClass -> {
             String mapperName = entityName + "Mapper";
             ClassCreator.of(project).init(mapperName,
-                    "@Mapper(componentModel = \"spring\")" +
+                    comment.getContent("对象转换器") + "\n@Mapper(componentModel = \"spring\")" +
                             "public interface " + mapperName + " extends EntityMapper<"
                             + entityClasses.getDtoClass().getName() + ", " + entityClasses.getEntityClass().getName() + "> {}")
                     .importClass("org.mapstruct.Mapper")
@@ -218,7 +228,8 @@ public class GeneratorAction extends MyAnAction {
                 .isPresent();
 
         StringBuilder content = new StringBuilder()
-                .append("public class ")
+                .append(comment.getContent("查询对象"))
+                .append("\npublic class ")
                 .append(entityClasses.getEntityName())
                 .append("Query ");
 
@@ -257,19 +268,21 @@ public class GeneratorAction extends MyAnAction {
 
         if (config.getWithSuper()) {
             ClassCreator.of(project).init(entityClasses.getEntityName() + "Dao",
-                    "@Mapper public interface " + entityClasses.getEntityName() + "Dao extends " + config.getSuperDao() + "" +
-                            "<" + entityClasses.getDtoClass().getName() + ", " + entityClasses.getQueryClass().getName() + ">" +
+                        comment.getContent("数据库操作类") +
+                    "\n@Mapper public interface " + entityClasses.getEntityName() + "Dao extends " + config.getSuperDao() + "" +
+                            "<" + entityClasses.getDtoClass().getName() + ">" +
                             "{}")
                     .importClass("org.apache.ibatis.annotations.Mapper")
                     .importClass(config.getSuperDao())
                     .addTo(daoDirectory)
                     .and(daoClass -> {
-                        psiUtils.importClass(daoClass, entityClasses.getQueryClass(), entityClasses.getDtoClass());
+                        psiUtils.importClass(daoClass, entityClasses.getDtoClass());
                         createDaoMappingFile(entityClasses.setDaoClass(daoClass));
                     });
         } else {
             ClassCreator.of(project).init(entityClasses.getEntityName() + "Dao",
-                    "@Mapper public interface " + entityClasses.getEntityName() + "Dao {" +
+                    comment.getContent("数据库操作类") +
+                            "\n@Mapper public interface " + entityClasses.getEntityName() + "Dao {" +
                             "List<" + entityClasses.getDtoClass().getName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
                             "void batchAdd(@Param(\"list\") List<" + entityClasses.getDtoClass().getName() + "> dataList);" +
                             "}")
@@ -421,7 +434,7 @@ public class GeneratorAction extends MyAnAction {
         // 增加服务接口
         String serviceName = entityClasses.getEntityName().concat("Service");
 
-        String content = "public interface " +
+        String content = comment.getContent("服务") + "\npublic interface " +
                 serviceName +
                 "{" +
                 "void save(" + entityClasses.getDtoClass().getName() + " dto); " +
@@ -462,7 +475,7 @@ public class GeneratorAction extends MyAnAction {
         // 增加接口服务实现
         PsiDirectory serviceImplDirectory = directoryMap.get("service");
 
-        StringBuilder content = new StringBuilder("@Service public class ")
+        StringBuilder content = new StringBuilder(comment.getContent("服务") + "\n@Service public class ")
                 .append(serviceName);
         if (config.getWithInterface()) {
             content.append("Impl ");
@@ -472,7 +485,6 @@ public class GeneratorAction extends MyAnAction {
                     .append(config.getSuperService().substring(config.getSuperService().lastIndexOf(".") + 1))
                     .append("<").append(entityClasses.getEntityClassName())
                     .append(",").append(entityClasses.getDtoClass().getName())
-                    .append(",").append(entityClasses.getQueryClass().getName())
                     .append(",").append(entityClasses.getRepositoryClass().getName())
                     .append(",").append(entityClasses.getDaoClass().getName())
                     .append(",").append(entityClasses.getMapperClass().getName())
@@ -579,7 +591,8 @@ public class GeneratorAction extends MyAnAction {
         controllerPath = controllerPath.substring(0, 1).toLowerCase() + controllerPath.substring(1);
 
         StringBuilder content = new StringBuilder();
-        content.append("@RequestMapping(\"")
+        content.append(comment.getContent("控制器"))
+                .append("\n@RequestMapping(\"")
                 .append(prefix)
                 .append("/")
                 .append(controllerPath)
@@ -588,7 +601,7 @@ public class GeneratorAction extends MyAnAction {
 
         if (useAPI) {
             content.append("@Api(tags = \"")
-                    .append(entityName)
+                    .append(comment.text)
                     .append("控制器\")");
         }
 
@@ -675,7 +688,8 @@ public class GeneratorAction extends MyAnAction {
         String repositoryName = entityName.replace("Entity", "").concat("Repository");
         getBaseRepositoryClass(repositoryDirectory, baseRepositoryClass ->
                 ClassCreator.of(project).init(repositoryName,
-                        "public interface " + repositoryName + " extends BaseRepository<" + entityClasses.getEntityClassName() + "> {}")
+                        comment.getContent("JPA数据库操作类") +
+                        "\npublic interface " + repositoryName + " extends BaseRepository<" + entityClasses.getEntityClassName() + "> {}")
                         .importClass(entityClasses.getEntityClass())
                         .importClass(baseRepositoryClass)
                         .addTo(repositoryDirectory)
@@ -809,6 +823,11 @@ public class GeneratorAction extends MyAnAction {
     private static final class Comment {
         private String text;
         private String author;
+
+        private String getContent(String cName) {
+            return "/** " + text + cName + " \n * @author " + author
+                    + " " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) +  " **/";
+        }
     }
 
     public static void main(String[] args) {
