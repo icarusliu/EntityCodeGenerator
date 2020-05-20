@@ -485,9 +485,6 @@ public class GeneratorAction extends MyAnAction {
                     .append(config.getSuperService().substring(config.getSuperService().lastIndexOf(".") + 1))
                     .append("<").append(entityClasses.getEntityClassName())
                     .append(",").append(entityClasses.getDtoClass().getName())
-                    .append(",").append(entityClasses.getRepositoryClass().getName())
-                    .append(",").append(entityClasses.getDaoClass().getName())
-                    .append(",").append(entityClasses.getMapperClass().getName())
                     .append("> ");
         }
 
