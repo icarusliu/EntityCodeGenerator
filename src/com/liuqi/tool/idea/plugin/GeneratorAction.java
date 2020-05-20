@@ -825,7 +825,7 @@ public class GeneratorAction extends MyAnAction {
         private String author;
 
         private String getContent(String cName) {
-            return "/** " + text + cName + " \n * @author " + author
+            return "/** " + text.replace("\"", "") + cName + " \n * @author " + author.replace("\"", "")
                     + " " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) +  " **/";
         }
     }
