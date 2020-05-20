@@ -74,8 +74,8 @@ public class GeneratorAction extends MyAnAction {
         if (null != commentAnnotation) {
             String value = psiUtils.getAnnotationValue(commentAnnotation, "value")
                     .orElseGet(() -> psiUtils.getAnnotationValue(commentAnnotation, "entityName").orElse(""));
-            comment.text = value;
-            comment.author = psiUtils.getAnnotationValue(commentAnnotation, "author").orElse("EntityCodeGeneratoo");
+            comment.text = value.replace("\"", "");
+            comment.author = psiUtils.getAnnotationValue(commentAnnotation, "author").orElse("EntityCodeGeneratoo").replace("\"", "");
         }
 
         // 在它所在包的同级的repository中创建Repository
@@ -825,7 +825,7 @@ public class GeneratorAction extends MyAnAction {
         private String author;
 
         private String getContent(String cName) {
-            return "/** " + text.replace("\"", "") + cName + " \n * @author " + author.replace("\"", "")
+            return "/** " + text+ cName + " \n * @author " + author
                     + " " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) +  " **/";
         }
     }
