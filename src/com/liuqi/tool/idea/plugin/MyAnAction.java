@@ -10,9 +10,6 @@ import com.intellij.openapi.roots.FileIndexFacade;
 import com.intellij.psi.*;
 import com.liuqi.tool.idea.plugin.utils.PsiUtils;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  * 
  *
@@ -27,7 +24,6 @@ public abstract class MyAnAction extends AnAction {
 
     public PsiClass getEditingClass(AnActionEvent anActionEvent) {
         project = anActionEvent.getProject();
-        psiUtils = PsiUtils.of(project);
 
         if (null == project) {
             return null;
@@ -51,6 +47,7 @@ public abstract class MyAnAction extends AnAction {
 
         containerDirectory = classes[0].getContainingFile().getContainingDirectory();
         module = FileIndexFacade.getInstance(project).getModuleForFile(classes[0].getContainingFile().getVirtualFile());
+        psiUtils = PsiUtils.of(module);
 
         return classes[0];
     }

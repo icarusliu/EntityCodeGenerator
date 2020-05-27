@@ -20,6 +20,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Consumer;
 
+import static com.intellij.psi.PsiType.BOOLEAN;
+
 /**
  * 实体类代码创建器
  * 生成代码路径：
@@ -68,6 +70,14 @@ public class GeneratorAction extends MyAnAction {
         // 加载所有目录
         initDirs();
         entityClasses.setEntityClass(aClass);
+
+        // 获取是否有deleted字段，如果有的话，生成的service方法、dao中的语句中都要增加相应的条件
+        Optional.ofNullable(aClass.findFieldByName("deleted", false))
+                .ifPresent(field -> config.setWithDeleted(true));
+
+        // 获取是否有createTime字段，如果有的话，生成service方法的save方法,dao中的语句排序需要增加对应的排序
+        Optional.ofNullable(aClass.findFieldByName("createTime", false))
+                .ifPresent(field -> config.setWithCreateTime(true));
 
         // 加载注释信息
         PsiAnnotation commentAnnotation = aClass.getAnnotation("com.liuqi.common.web.common.annotation.Comment");
@@ -142,7 +152,7 @@ public class GeneratorAction extends MyAnAction {
 
         // 根据Entity对象创建DTO对象
         boolean pExtendFromBaseDTO = extendFromBaseDTO;
-        ClassCreator.of(project).init(entityName + "DTO", dtoContent)
+        ClassCreator.of(module).init(entityName + "DTO", dtoContent)
                 .copyFields(entityClasses.getEntityClass())
                 .importClassIf("AbstractBaseDTO", () -> pExtendFromBaseDTO)
                 .addTo(dtoDirectory)
@@ -159,13 +169,13 @@ public class GeneratorAction extends MyAnAction {
             PsiClass dtoClass = entityClasses.dtoClass;
             PsiField[] fields = dtoClass.getFields();
             for (PsiField field : fields) {
-                PsiUtils.of(project)
+                PsiUtils.of(module)
                         .addAnnotation(field, "ExcelField");
             }
 
-            PsiUtils.of(project)
+            PsiUtils.of(module)
                     .findClass("ExcelField")
-                    .ifPresent(psiClass -> PsiUtils.of(project)
+                    .ifPresent(psiClass -> PsiUtils.of(module)
                             .importClass(dtoClass, psiClass));
         }
 
@@ -186,7 +196,7 @@ public class GeneratorAction extends MyAnAction {
         Optional<PsiClass> entityMapperClassOptional = psiUtils.findClass("EntityMapper");
         Consumer<PsiClass> createMapperFunction = entityMapperClass -> {
             String mapperName = entityName + "Mapper";
-            ClassCreator.of(project).init(mapperName,
+            ClassCreator.of(module).init(mapperName,
                     comment.getContent("对象转换器") + "\n@Mapper(componentModel = \"spring\")" +
                             "public interface " + mapperName + " extends EntityMapper<"
                             + entityClasses.getDtoClass().getName() + ", " + entityClasses.getEntityClass().getName() + "> {}")
@@ -206,7 +216,7 @@ public class GeneratorAction extends MyAnAction {
             createMapperFunction.accept(entityMapperClassOptional.get());
         } else {
             // 不存在时，先创建EntityMapper然后再创建Mapper
-            ClassCreator.of(project).init("EntityMapper", "public interface EntityMapper<D, E> {\n" +
+            ClassCreator.of(module).init("EntityMapper", "public interface EntityMapper<D, E> {\n" +
                     "    E toEntity(D dto);\n" +
                     "    D toDto(E entity);\n" +
                     "    List<E> toEntity(List<D> dtoList);\n" +
@@ -241,7 +251,7 @@ public class GeneratorAction extends MyAnAction {
 
         // 先创建Query对象
         PsiDirectory queryDirectory = directoryMap.get("query");
-        ClassCreator creator = ClassCreator.of(project)
+        ClassCreator creator = ClassCreator.of(module)
                 .init(entityClasses.getEntityName() + "Query", content.toString());
         if (!baseQueryExists) {
             creator.addGetterAndSetterMethods();
@@ -267,9 +277,9 @@ public class GeneratorAction extends MyAnAction {
         PsiDirectory daoDirectory = directoryMap.get("dao");
 
         if (config.getWithSuper()) {
-            ClassCreator.of(project).init(entityClasses.getEntityName() + "Dao",
-                        comment.getContent("数据库操作类") +
-                    "\n@Mapper public interface " + entityClasses.getEntityName() + "Dao extends " + config.getSuperDao() + "" +
+            ClassCreator.of(module).init(entityClasses.getEntityName() + "Dao",
+                    comment.getContent("数据库操作类") +
+                            "\n@Mapper public interface " + entityClasses.getEntityName() + "Dao extends " + config.getSuperDao() + "" +
                             "<" + entityClasses.getDtoClass().getName() + ">" +
                             "{}")
                     .importClass("org.apache.ibatis.annotations.Mapper")
@@ -280,7 +290,7 @@ public class GeneratorAction extends MyAnAction {
                         createDaoMappingFile(entityClasses.setDaoClass(daoClass));
                     });
         } else {
-            ClassCreator.of(project).init(entityClasses.getEntityName() + "Dao",
+            ClassCreator.of(module).init(entityClasses.getEntityName() + "Dao",
                     comment.getContent("数据库操作类") +
                             "\n@Mapper public interface " + entityClasses.getEntityName() + "Dao {" +
                             "List<" + entityClasses.getDtoClass().getName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
@@ -389,17 +399,39 @@ public class GeneratorAction extends MyAnAction {
             content.append("<select id=\"query\" parameterType=\"")
                     .append(psiUtils.getPackageAndName(entityClasses.getQueryClass()))
                     .append("\" resultMap=\"resultMap\">")
-                    .append("<include refid=\"columns\"/>")
-                    .append("</select>");
+                    .append("<include refid=\"columns\"/>");
 
-            content.append("<select id=\"findAll\" parameterType=\"")
+            if (config.getWithDeleted()) {
+                content.append("\n where deleted = 0");
+            }
+
+            content.append("\n <if test=\"null != orderByProperty and '' != orderByProperty\">\n order by #{orderByProperty} #{orderByType}\n</if>");
+
+            if (config.getWithCreateTime()) {
+                content.append("\n<if test=\"null == orderByProperty or '' == orderByProperty\"> \norder by create_time desc \n</if>");
+            }
+
+            content.append("\n</select>");
+
+            content.append("\n<select id=\"findAll\" parameterType=\"")
                     .append(psiUtils.getPackageAndName(entityClasses.getQueryClass()))
                     .append("\" resultMap=\"resultMap\">")
-                    .append("<include refid=\"columns\"/>")
-                    .append("</select>");
+                    .append("\n<include refid=\"columns\"/>");
+
+            if (config.getWithDeleted()) {
+                content.append(" \nwhere deleted = 0");
+            }
+
+            content.append(" \n<if test=\"null != orderByProperty and '' != orderByProperty\"> \norder by #{orderByProperty} #{orderByType}\n</if>");
+
+            if (config.getWithCreateTime()) {
+                content.append("\n<if test=\"null == orderByProperty or '' == orderByProperty\"> \norder by create_time desc \n</if>");
+            }
+
+            content.append("\n</select>");
 
             // 增加批量新增语句
-            content.append("<insert id=\"batchAdd\" parameterType=\"")
+            content.append("\n<insert id=\"batchAdd\" parameterType=\"")
                     .append(psiUtils.getPackageAndName(entityClasses.getDtoClass()))
                     .append("\">")
                     .append("\ninsert into ")
@@ -451,7 +483,7 @@ public class GeneratorAction extends MyAnAction {
         }
 
         content += "}";
-        ClassCreator.of(project).init(serviceName, content)
+        ClassCreator.of(module).init(serviceName, content)
                 .importClass(entityClasses.dtoClass)
                 .importClass("java.util.Optional")
                 .importClass("java.util.List")
@@ -531,18 +563,43 @@ public class GeneratorAction extends MyAnAction {
                         .append("\n@Override public Workbook download(").append(entityClasses.getQueryClass().getName()).append(" query) {List<")
                         .append(entityClasses.getDtoClass().getName()).append("> dataList = query(query); return ExcelUtils.createExcelGenerator(getExcelColumns(), dataList).getWorkbook();} ");
             }
+        } else {
+            // 删除方法使用逻辑删除
+            if (config.getWithDeleted()) {
+                content.append("@Override public void delete(Long id) {repository.findById(id).ifPresent(item -> {item.setDeleted(true); repository.save(item); }); }");
+
+                content.append("@Override public ")
+                        .append(entityClasses.dtoClass.getName())
+                        .append(" save(")
+                        .append(entityClasses.dtoClass.getName())
+                        .append(" dto) {if (null == dto.getId()) { dto.setDeleted(false); ");
+
+                if (config.getWithCreateTime()) {
+                    content.append("dto.setCreateTime(LocalDateTime.now());");
+                }
+
+                content.append(" } return super.save(dto); }");
+
+            } else if (config.getWithCreateTime()) {
+                content.append("@Override public ")
+                        .append(entityClasses.dtoClass.getName())
+                        .append(" save(")
+                        .append(entityClasses.dtoClass.getName())
+                        .append(" dto) {if (null == dto.getId()) { dto.setCreateTime(LocalDateTime.now()); } return super.save(dto); }");
+            }
         }
 
 
         content.append("}");
 
-        ClassCreator.of(project).init(serviceName + (config.getWithInterface() ? "Impl" : ""), content.toString())
+        ClassCreator.of(module).init(serviceName + (config.getWithInterface() ? "Impl" : ""), content.toString())
                 .importClass(entityClasses.getEntityClass())
                 .importClass("javax.annotation.Resource")
                 .importClass("org.springframework.stereotype.Service")
                 .importClassIf("Transactional", () -> config.getWithInterface())
                 .importClassIf("java.util.Optional", () -> config.getWithInterface())
                 .importClassIf("java.util.List", () -> config.getWithInterface())
+                .importClassIf("java.time.LocalDateTime", () -> config.getWithCreateTime())
                 .importClassIf("PageHelper", () -> config.getWithInterface())
                 .importClassIf(config.getSuperService(), () -> config.getWithSuper())
                 .importClass("AbstractBaseEntityService")
@@ -586,6 +643,8 @@ public class GeneratorAction extends MyAnAction {
         String controllerPath = Arrays.stream(StringUtils.splitByCharacterTypeCamelCase(entityName))
                 .reduce((s1, s2) -> s1.toLowerCase().concat("-").concat(s2.toLowerCase())).orElse("");
         controllerPath = controllerPath.substring(0, 1).toLowerCase() + controllerPath.substring(1);
+
+        entityClasses.controllerPath = prefix + "/" +controllerPath;
 
         StringBuilder content = new StringBuilder();
         content.append(comment.getContent("控制器"))
@@ -648,7 +707,7 @@ public class GeneratorAction extends MyAnAction {
         content.append("}");
 
         // 在controller目录下创建Controller
-        ClassCreator.of(project)
+        ClassCreator.of(module)
                 .init(entityClasses.getEntityName() + suffix, content.toString())
                 .importClass("javax.annotation.Resource")
                 .importClass("org.springframework.web.bind.annotation.RequestMaping")
@@ -671,7 +730,103 @@ public class GeneratorAction extends MyAnAction {
                 .and(controllerClass -> {
                     psiUtils.importClass(controllerClass, entityClasses.getDtoClass(), entityClasses.getServiceClass(),
                             entityClasses.getQueryClass());
+
+                    // 创建前端页面
+                    createPage(entityClasses);
                 });
+    }
+
+    /**
+     * 创建前端页面
+     */
+    private void createPage(EntityClasses entityClasses) {
+        if (config.getWithPage()) {
+            String url = entityClasses.controllerPath;
+
+            // 前端页面使用entityDataTable
+            StringBuilder content = new StringBuilder("<template>\n" +
+                    "    <div>\n" +
+                    "        <entity-data-table\n" +
+                    "            :additionalQueryParams=\"queryParams\"\n" +
+                    "            :urlPrefix=\"urlPrefix\"\n" +
+                    "            :queryFlag=\"queryFlag\"\n" +
+                    "            :columns=\"tableColumns\"\n" +
+                    "            :lazyLoad=\"true\"\n" +
+                    "        >\n" +
+                    "            <template slot=\"searchBar\">\n" +
+                    "            </template>\n" +
+                    "        </entity-data-table>\n" +
+                    "    </div>\n" +
+                    "</template>\n" +
+                    "\n" +
+                    "<script>\n" +
+                    "import entityDataTable from \"../../components/EntityDataTable\";\n" +
+                    "\n" +
+                    "export default {\n" +
+                    "    name: \"App\",\n" +
+                    "    watch: {},\n" +
+                    "    components: { entityDataTable },\n" +
+                    "    data() {\n" +
+                    "        return {\n" +
+                    "            urlPrefix: \"" + url + "\",\n" +
+                    "\n" +
+                    "            // 表格列信息\n" +
+                    "            tableColumns: [\n" +
+                    "                { field: \"id\", title: \"编号\", width: \"60px\", needAdd: false },\n");
+
+            // 补充字段信息
+            for (PsiField field : entityClasses.getEntityClass().getFields()) {
+                content.append("                {\n                    field: \"").append(field.getName()).append("\",\n");
+
+                PsiType type = field.getType();
+                String tableType = "text";
+                if (type.equals(BOOLEAN)) {
+                    tableType = "checkbox";
+                } else if (type.equals(PsiType.INT) || type.equals(PsiType.LONG)) {
+                    tableType = "number";
+                }
+
+                content.append("                    type: \"").append(tableType).append("\", \n");
+                content.append(
+                                "                    title: \"\",\n" +
+                                "                    width: \"120px\",\n" +
+                                        "                    required: true,\n" +
+                                        "                    editable: true,\n" +
+                                        "                    needAdd: true,\n" +
+                                        "                    options: [],\n" +
+                                        "                    dialogType: \"text\",\n" +
+                                "                },\n" );
+            }
+
+            content.append(
+                    "                {\n" +
+                    "                    field: \"operations\",\n" +
+                    "                    type: \"operations\",\n" +
+                    "                    title: \"操作\",\n" +
+                    "                    width: \"120px\"\n" +
+                    "                }\n" +
+                    "            ],\n" +
+                    "\n" +
+                    "            queryParams: {\n" +
+                    "            },\n" +
+                    "            queryFlag: 0\n" +
+                    "        };\n" +
+                    "    },\n" +
+                    "\n" +
+                    "    mounted() {\n" +
+                    "        this.queryFlag++;\n" +
+                    "    },\n" +
+                    "\n" +
+                    "    methods: {}\n" +
+                    "};\n" +
+                    "</script>\n" +
+                    "\n" +
+                    "<style lang=\"scss\">\n" +
+                    "</style>\n" +
+                    "\n");
+
+            psiUtils.createResourceFile("pages", entityClasses.getEntityName() + ".vue", content.toString());
+        }
     }
 
     /**
@@ -684,9 +839,9 @@ public class GeneratorAction extends MyAnAction {
 
         String repositoryName = entityName.replace("Entity", "").concat("Repository");
         getBaseRepositoryClass(repositoryDirectory, baseRepositoryClass ->
-                ClassCreator.of(project).init(repositoryName,
+                ClassCreator.of(module).init(repositoryName,
                         comment.getContent("JPA数据库操作类") +
-                        "\npublic interface " + repositoryName + " extends BaseRepository<" + entityClasses.getEntityClassName() + "> {}")
+                                "\npublic interface " + repositoryName + " extends BaseRepository<" + entityClasses.getEntityClassName() + "> {}")
                         .importClass(entityClasses.getEntityClass())
                         .importClass(baseRepositoryClass)
                         .addTo(repositoryDirectory)
@@ -706,7 +861,7 @@ public class GeneratorAction extends MyAnAction {
             return;
         }
 
-        ClassCreator.of(project).init("BaseRepository",
+        ClassCreator.of(module).init("BaseRepository",
                 "@NoRepositoryBean public interface BaseRepository<E> extends JpaRepository<E, Long>, JpaSpecificationExecutor<E> {}")
                 .importClass("NoRepositoryBean")
                 .importClass("JpaRepository")
@@ -725,6 +880,7 @@ public class GeneratorAction extends MyAnAction {
         private PsiClass controllerClass;
         private PsiClass queryClass;
         private PsiClass daoClass;
+        private String controllerPath;
 
         PsiClass getEntityClass() {
             return entityClass;
@@ -822,8 +978,8 @@ public class GeneratorAction extends MyAnAction {
         private String author;
 
         private String getContent(String cName) {
-            return "/** " + text+ cName + " \n * @author " + author
-                    + " " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) +  " **/";
+            return "/** " + text + cName + " \n * @author " + author
+                    + " " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + " **/";
         }
     }
 

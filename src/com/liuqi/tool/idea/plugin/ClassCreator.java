@@ -1,7 +1,9 @@
 package com.liuqi.tool.idea.plugin;
 
 import com.intellij.ide.highlighter.JavaFileType;
+import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.roots.FileIndexFacade;
 import com.intellij.psi.*;
 import com.liuqi.tool.idea.plugin.utils.PsiUtils;
 import org.apache.commons.lang.StringUtils;
@@ -21,13 +23,13 @@ class ClassCreator {
     private Project project;
     private PsiUtils psiUtils;
 
-    private ClassCreator(Project project) {
-        this.project = project;
-        this.psiUtils = PsiUtils.of(project);
+    private ClassCreator(Module module) {
+        this.psiUtils = PsiUtils.of(module);
+        this.project = module.getProject();
     }
 
-    static ClassCreator of(Project project) {
-        return new ClassCreator(project);
+    static ClassCreator of(Module module) {
+        return new ClassCreator(module);
     }
 
     ClassCreator init(String name, String content) {
@@ -100,7 +102,7 @@ class ClassCreator {
 
             // 添加校验注解
             PsiAnnotation psiAnnotation = field.getAnnotation("javax.persistence.Column");
-            StringBuilder annotationStringBuilder = new StringBuilder("\n");
+            StringBuilder annotationStringBuilder = new StringBuilder("");
             if (null != psiAnnotation) {
                 PsiAnnotationMemberValue memberValue = psiAnnotation.findAttributeValue("columnDefinition");
                 if (null != memberValue) {
@@ -136,12 +138,14 @@ class ClassCreator {
             }
 
             if (typeName.toLowerCase().equals("localdate")) {
-                annotationStringBuilder.append(" @JsonFormat(pattern = \"yyyy-MM-dd\") \n");
+                annotationStringBuilder.append("@JsonFormat(pattern = \"yyyy-MM-dd\") ");
+                importClass("com.fasterxml.jackson.annotation.JsonFormat");
             } else if (typeName.toLowerCase().equals("localdatetime")) {
-                annotationStringBuilder.append(" @JsonFormat(pattern = \"yyyy-MM-dd HH:mm:ss\") \n");
+                annotationStringBuilder.append("@JsonFormat(pattern = \"yyyy-MM-dd HH:mm:ss\") ");
+                importClass("com.fasterxml.jackson.annotation.JsonFormat");
             }
 
-            PsiField cField = elementFactory.createFieldFromText(annotationStringBuilder.toString() + "private " + typeName + " " + name + ";", null);
+            PsiField cField = elementFactory.createFieldFromText(annotationStringBuilder.toString() + "private " + typeName + " " + name + ";\n", null);
             aClass.add(cField);
 
             // 针对每一个属性生成三个方法

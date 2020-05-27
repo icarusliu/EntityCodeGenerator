@@ -55,6 +55,9 @@ public class GeneratorConfig {
                         case "common.super.dao":
                             config.setSuperDao(v);
                             break;
+                        case "ui.enable":
+                            config.setWithPage(Boolean.parseBoolean(v));
+                            break;
                     }
                 });
             } catch (IOException e) {
@@ -95,6 +98,21 @@ public class GeneratorConfig {
     private String superService;
     private String superController;
     private String superDao;
+
+    /**
+     * 就否有deleted字段
+     */
+    private Boolean withDeleted = false;
+
+    /**
+     * 是否有createTime字段
+     */
+    private Boolean withCreateTime = false;
+
+    /**
+     * 是否需要生成前端页面
+     */
+    private Boolean withPage = false;
 
     public Boolean getExcelFunc() {
         return excelFunc;
@@ -188,5 +206,44 @@ public class GeneratorConfig {
 
     public String getSuperDao() {
         return this.superDao;
+    }
+
+    public GeneratorConfig withDeleted(Boolean withDeleted) {
+        this.withDeleted = withDeleted;
+        return this;
+    }
+
+    public void setWithDeleted(Boolean withDeleted) {
+        this.withDeleted = withDeleted;
+    }
+
+    public Boolean getWithDeleted() {
+        return this.withDeleted;
+    }
+
+    public GeneratorConfig withCreateTime(Boolean withCreateTime) {
+        this.withCreateTime = withCreateTime;
+        return this;
+    }
+
+    public void setWithCreateTime(Boolean withCreateTime) {
+        this.withCreateTime = withCreateTime;
+    }
+
+    public Boolean getWithCreateTime() {
+        return this.withCreateTime;
+    }
+
+    public GeneratorConfig withPage(Boolean withPage) {
+        this.withPage = withPage;
+        return this;
+    }
+
+    public void setWithPage(Boolean withPage) {
+        this.withPage = withPage;
+    }
+
+    public Boolean getWithPage() {
+        return this.withPage;
     }
 }

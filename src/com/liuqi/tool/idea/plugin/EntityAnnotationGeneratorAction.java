@@ -63,7 +63,7 @@ public class EntityAnnotationGeneratorAction extends MyAnAction {
                         annotationField = annotationField + "timestamp not null default current_timestamp comment ''\")";
                     }
                 } else if (typeName.contains("Long")) {
-                    annotationField = annotationField + "bitint comment ''\")";
+                    annotationField = annotationField + "bigint comment ''\")";
                 } else if (psiType.getClass().isEnum()) {
                     annotationField = annotationField + "int(1) default 0 comment ''\")";
                 } else {

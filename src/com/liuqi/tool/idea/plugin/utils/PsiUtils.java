@@ -1,15 +1,24 @@
 package com.liuqi.tool.idea.plugin.utils;
 
+import com.intellij.ide.highlighter.JavaFileType;
 import com.intellij.lang.jvm.annotation.JvmAnnotationAttribute;
+import com.intellij.openapi.fileTypes.FileTypes;
+import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.roots.ModuleRootManager;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
 import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.psi.codeStyle.JavaCodeStyleManager;
+import com.intellij.psi.impl.file.PsiDirectoryFactory;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.PsiShortNamesCache;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.java.generate.element.ElementFactory;
+import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
 
+import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
@@ -22,13 +31,15 @@ import java.util.function.Predicate;
  **/
 public class PsiUtils {
     private Project project;
+    private Module module;
 
-    private PsiUtils(Project project) {
-        this.project = project;
+    private PsiUtils(Module module) {
+        this.module = module;
+        this.project = module.getProject();
     }
 
-    public static PsiUtils of(Project project) {
-        return new PsiUtils(project);
+    public static PsiUtils of(Module module) {
+        return new PsiUtils(module);
     }
 
     public void importClass(PsiClass srcClass, PsiClass... toImportClasses) {
@@ -39,6 +50,28 @@ public class PsiUtils {
 
             ((PsiJavaFile) srcClass.getContainingFile()).importClass(toImportClass);
         }
+    }
+
+    public void createResourceFile(String dirName, String fileName, String content) {
+        // 获取目录，在resources目录下，如果没有这个目录，那么创建一个目录
+        ModuleRootManager rootManager = ModuleRootManager.getInstance(module);
+        List<VirtualFile> sourceRoots = rootManager.getSourceRoots(JavaModuleSourceRootTypes.RESOURCES);
+        VirtualFile resourceDirectory = sourceRoots.get(0);
+        VirtualFile dir = resourceDirectory.findChild(dirName);
+        if (null == dir) {
+            try {
+                dir = resourceDirectory.createChildDirectory(this, dirName);
+            } catch (IOException e) {
+                e.printStackTrace();
+                dir = resourceDirectory;
+            }
+        }
+
+        PsiDirectory psiDirectory = PsiDirectoryFactory.getInstance(project).createDirectory(dir);
+
+        PsiFile file = PsiFileFactory.getInstance(project).createFileFromText(fileName, FileTypes.PLAIN_TEXT,
+                content);
+        psiDirectory.add(file);
     }
 
     public String getPackageName(PsiClass psiClass) {
