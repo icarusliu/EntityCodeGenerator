@@ -96,7 +96,7 @@ public class GeneratorAction extends MyAnAction {
     private void initDirs() {
         List<String> directories = Arrays.asList("bean", "bean/dto", "bean/mapper", "bean/query",
                 "domain", "domain/dao", "domain/entity", "domain/repository", "service",
-                "web/rest");
+                "web");
 
         if (config.getWithInterface()) {
             directories.add("service/impl");
@@ -115,6 +115,10 @@ public class GeneratorAction extends MyAnAction {
             } else {
                 String[] dirs = dir.split("/");
                 PsiDirectory directory = workDir.findSubdirectory(dirs[0]);
+                if (null == directory) {
+                    directory = workDir.createSubdirectory(dirs[0]);
+                }
+
                 PsiDirectory subDir = directory.findSubdirectory(dirs[1]);
                 if (null == subDir) {
                     subDir = directory.createSubdirectory(dirs[1]);
@@ -640,8 +644,7 @@ public class GeneratorAction extends MyAnAction {
         String suffix = "Controller";
 
         String entityName = entityClasses.getEntityName();
-        String controllerPath = Arrays.stream(StringUtils.splitByCharacterTypeCamelCase(entityName))
-                .reduce((s1, s2) -> s1.toLowerCase().concat("-").concat(s2.toLowerCase())).orElse("");
+        String controllerPath = getControllerPath(entityName);
         controllerPath = controllerPath.substring(0, 1).toLowerCase() + controllerPath.substring(1);
 
         entityClasses.controllerPath = prefix + "/" +controllerPath;
@@ -736,16 +739,23 @@ public class GeneratorAction extends MyAnAction {
                 });
     }
 
+    private String getControllerPath(String entityName) {
+        return Arrays.stream(StringUtils.splitByCharacterTypeCamelCase(entityName))
+                .reduce((s1, s2) -> s1.toLowerCase().concat("-").concat(s2.toLowerCase())).orElse("");
+    }
+
     /**
-     * 创建前端页面
+     * 创建前端管理页面
      */
     private void createPage(EntityClasses entityClasses) {
         if (config.getWithPage()) {
             String url = entityClasses.controllerPath;
 
             // 前端页面使用entityDataTable
+            String mainClass= getControllerPath(entityClasses.getEntityName());
             StringBuilder content = new StringBuilder("<template>\n" +
-                    "    <div>\n" +
+                    "<!--" + comment.text + "管理-->" +
+                    "    <div class='" + mainClass +  "'>\n" +
                     "        <entity-data-table\n" +
                     "            :additionalQueryParams=\"queryParams\"\n" +
                     "            :urlPrefix=\"urlPrefix\"\n" +
@@ -822,6 +832,7 @@ public class GeneratorAction extends MyAnAction {
                     "</script>\n" +
                     "\n" +
                     "<style lang=\"scss\">\n" +
+                            "." + mainClass + "{\n}" +
                     "</style>\n" +
                     "\n");
 
