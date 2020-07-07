@@ -4,7 +4,6 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.psi.*;
 import com.liuqi.tool.idea.plugin.utils.MyStringUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -24,6 +23,15 @@ public class EntityAnnotationGeneratorAction extends MyAnAction {
             return;
         }
 
+        PsiAnnotation commentAnnotation = aClass.getAnnotation("com.liuqi.common.web.common.annotation.Comment");
+        String tableComment = "";
+        if (null != commentAnnotation) {
+            String value = psiUtils.getAnnotationValue(commentAnnotation, "value")
+                    .orElseGet(() -> psiUtils.getAnnotationValue(commentAnnotation, "entityName").orElse(""));
+            tableComment = value.replace("\"", "");
+        }
+        String pTableComment = tableComment;
+
         // 增加Entity及Table注解
         String className = aClass.getName();
         assert className != null;
@@ -35,6 +43,8 @@ public class EntityAnnotationGeneratorAction extends MyAnAction {
         WriteCommandAction.runWriteCommandAction(project, () -> {
             PsiAnnotation psiAnnotation = psiUtils.addAnnotation(aClass, "javax.persistence.Entity");
             psiUtils.addAnnotationFromStrAfter(aClass, "@Table(name = \"" + tableName + "\")", psiAnnotation);
+            psiUtils.addAnnotationFromStrAfter(aClass, "\n" +
+                    "@org.hibernate.annotations.Table(appliesTo = \"" + tableName + "\",comment = \"" + pTableComment + "\")", psiAnnotation);
             PsiJavaFile javaFile = (PsiJavaFile) aClass.getContainingFile();
             psiUtils.findClass("javax.persistence.Table").ifPresent(javaFile::importClass);
             psiUtils.findClass("javax.persistence.GeneratedValue").ifPresent(javaFile::importClass);
@@ -64,7 +74,7 @@ public class EntityAnnotationGeneratorAction extends MyAnAction {
                     }
                 } else if (typeName.contains("Long")) {
                     annotationField = annotationField + "bigint comment ''\")";
-                } else if (psiType.getClass().isEnum()) {
+                } else if (psiType.getClass().isEnum() || typeName.toLowerCase().equals("boolean")) {
                     annotationField = annotationField + "int(1) default 0 comment ''\")";
                 } else {
                     annotationField = annotationField + "integer comment ''\")";

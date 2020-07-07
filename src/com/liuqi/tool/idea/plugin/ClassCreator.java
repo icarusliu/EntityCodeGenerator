@@ -125,7 +125,9 @@ class ClassCreator {
                     }
 
                     // 如果是not null，需要加上NotNull校验 javax.validation.constraints
-                    if (str.contains("not null") && !typeName.toLowerCase().contains("type")) {
+                    if (str.contains("not null") && !typeName.toLowerCase().contains("type")
+                            && !typeName.toLowerCase().equals("localdatetime")
+                            && !typeName.toLowerCase().equals("localdate")) {
                         if (typeName.equals("String")) {
                             annotationStringBuilder.append("@NotBlank ");
                             importClass("org.hibernate.validator.constraints.NotBlank");

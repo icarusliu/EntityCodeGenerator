@@ -248,9 +248,9 @@ public class GeneratorAction extends MyAnAction {
                 .append("Query ");
 
         if (baseQueryExists) {
-            content.append("extends BaseQuery{}");
+            content.append("extends BaseQuery{private String keyword; private Long id; private Long idNot;  }");
         } else {
-            content.append("{private Integer page;  \nprivate Integer size;  }");
+            content.append("{private Integer page;  \nprivate Integer size; private String keyword; private Long id; private Long idNot;   }");
         }
 
         // 先创建Query对象
@@ -265,6 +265,7 @@ public class GeneratorAction extends MyAnAction {
 
         creator.addTo(queryDirectory)
                 .and(queryClass -> {
+                    psiUtils.addGetterAndSetterMethods(queryClass);
                     entityClasses.setQueryClass(queryClass);
 
                     // 在Repository的同级目录下创建dao目录及dao对象
@@ -394,42 +395,67 @@ public class GeneratorAction extends MyAnAction {
 
             content.append("</resultMap>")
                     .append("<sql id=\"columns\">\n")
-                    .append("select \n")
                     .append(columns.toString())
-                    .append("\n from ")
-                    .append(tableName)
-                    .append(" t1 \n</sql>");
+                    .append("</sql>\n")
+                    .append("<sql id=\"tables\">\n")
+                    .append("\nfrom ").append(tableName).append(" t1\n")
+                    .append("</sql>")
+                    .append("<sql id=\"baseSelect\">\n")
+                    .append("select \n<include refid=\"columns\"/>\n")
+                    .append("<include refid=\"tables\"/>")
+                    .append("\n</sql>");
+
+            content.append("<sql id=\"conditions\">\n")
+                .append("<where>");
+            if (config.getWithDeleted()) {
+                content.append(" t1.deleted = 0\n");
+            }
+
+            // 增加id/idNot/keyword的查询条件
+            content.append("<if test=\"null != id\">\n")
+                    .append(" and t1.id = #{id}\n")
+                    .append("</if>\n")
+                    .append("<if test=\"null != idNot\">\n")
+                    .append("and t1.id <![CDATA[<>]]> #{idNot}\n")
+                    .append("</if>\n")
+                    .append("<if test=\"null != keyword and '' != keyword\">\n")
+                    .append("</if>\n")
+                    .append("</where>\n</sql>\n");
 
             content.append("<select id=\"query\" parameterType=\"")
                     .append(psiUtils.getPackageAndName(entityClasses.getQueryClass()))
                     .append("\" resultMap=\"resultMap\">")
-                    .append("<include refid=\"columns\"/>");
+                    .append("<include refid=\"baseSelect\"/>\n")
+                    .append("<include refid=\"conditions\"/>\n");
 
-            if (config.getWithDeleted()) {
-                content.append("\n where deleted = 0");
-            }
-
-            content.append("\n <if test=\"null != orderByProperty and '' != orderByProperty\">\n order by #{orderByProperty} #{orderByType}\n</if>");
+            content.append("\n <if test=\"null != orderByProperty and '' != orderByProperty\">\n order by t1.${orderByProperty} #{orderByType}\n</if>");
 
             if (config.getWithCreateTime()) {
-                content.append("\n<if test=\"null == orderByProperty or '' == orderByProperty\"> \norder by create_time desc \n</if>");
+                content.append("\n<if test=\"null == orderByProperty or '' == orderByProperty\"> \norder by t1.create_time desc \n</if>");
             }
 
             content.append("\n</select>");
 
+            content.append("<select id=\"count\" parameterType=\"")
+                    .append(psiUtils.getPackageAndName(entityClasses.getQueryClass()))
+                    .append("\" resultType=\"long\">")
+                    .append("select count(1) <include refid=\"tables\"/> \n")
+                    .append("<include refid=\"conditions\"/>\n")
+                    .append("\n</select>");
+
             content.append("\n<select id=\"findAll\" parameterType=\"")
                     .append(psiUtils.getPackageAndName(entityClasses.getQueryClass()))
                     .append("\" resultMap=\"resultMap\">")
-                    .append("\n<include refid=\"columns\"/>");
+                    .append("\n<include refid=\"baseSelect\"/>");
 
             if (config.getWithDeleted()) {
-                content.append(" \nwhere deleted = 0");
+                content.append(" \nwhere t1.deleted = 0");
             }
 
-            content.append(" \n<if test=\"null != orderByProperty and '' != orderByProperty\"> \norder by #{orderByProperty} #{orderByType}\n</if>");
+            content.append(" \n<if test=\"null != orderByProperty and '' != orderByProperty\"> \norder by t1.${orderByProperty} #{orderByType}\n</if>");
 
             if (config.getWithCreateTime()) {
-                content.append("\n<if test=\"null == orderByProperty or '' == orderByProperty\"> \norder by create_time desc \n</if>");
+                content.append("\n<if test=\"null == orderByProperty or '' == orderByProperty\"> \norder by t1.create_time desc \n</if>");
             }
 
             content.append("\n</select>");
@@ -570,7 +596,8 @@ public class GeneratorAction extends MyAnAction {
         } else {
             // 删除方法使用逻辑删除
             if (config.getWithDeleted()) {
-                content.append("@Override public void delete(Long id) {repository.findById(id).ifPresent(item -> {item.setDeleted(true); repository.save(item); }); }");
+                content.append("@Override public void delete(Long id) {repository.findById(id).ifPresent(item -> {item.setDeleted(true); " +
+                        "repository.save(item); }); }");
 
                 content.append("@Override public ")
                         .append(entityClasses.dtoClass.getName())
@@ -579,7 +606,7 @@ public class GeneratorAction extends MyAnAction {
                         .append(" dto) {if (null == dto.getId()) { dto.setDeleted(false); ");
 
                 if (config.getWithCreateTime()) {
-                    content.append("dto.setCreateTime(LocalDateTime.now());");
+                    content.append("dto.setCreateTime(LocalDateTime.now());dto.setUpdateTime(LocalDateTime.now()); ");
                 }
 
                 content.append(" } return super.save(dto); }");
@@ -589,7 +616,8 @@ public class GeneratorAction extends MyAnAction {
                         .append(entityClasses.dtoClass.getName())
                         .append(" save(")
                         .append(entityClasses.dtoClass.getName())
-                        .append(" dto) {if (null == dto.getId()) { dto.setCreateTime(LocalDateTime.now()); } return super.save(dto); }");
+                        .append(" dto) {if (null == dto.getId()) { dto.setCreateTime(LocalDateTime.now()); " +
+                                "dto.setUpdateTime(LocalDateTime.now());  } return super.save(dto); }");
             }
         }
 
@@ -647,7 +675,7 @@ public class GeneratorAction extends MyAnAction {
         String controllerPath = getControllerPath(entityName);
         controllerPath = controllerPath.substring(0, 1).toLowerCase() + controllerPath.substring(1);
 
-        entityClasses.controllerPath = prefix + "/" +controllerPath;
+        entityClasses.controllerPath = prefix + "/" + controllerPath;
 
         StringBuilder content = new StringBuilder();
         content.append(comment.getContent("控制器"))
@@ -696,7 +724,10 @@ public class GeneratorAction extends MyAnAction {
                     .append("@ApiOperation(\"分页查询\") @PostMapping(\"/page-query\") public PageInfo<").append(entityClasses.getDtoClass().getName()).append(
                     "> pageQuery(@RequestBody ")
                     .append(entityClasses.getQueryClass().getName()).append(" query) { return ").append(entityFieldName).append(
-                    "Service.pageQuery(query);}");
+                    "Service.pageQuery(query);}")
+                    .append("@ApiOperation(\"查询记录数\") @PostMapping(\"/count\") public Long count(@RequestBody ")
+                    .append(entityClasses.getQueryClass().getName()).append(" query) { return ").append(entityFieldName).append(
+                    "Service.count(query);}");
 
             if (config.getExcelFunc()) {
                 content.append("@ApiOperation(\"模板下载\") @GetMapping(\"/template-download\") public void " +
@@ -741,7 +772,9 @@ public class GeneratorAction extends MyAnAction {
 
     private String getControllerPath(String entityName) {
         return Arrays.stream(StringUtils.splitByCharacterTypeCamelCase(entityName))
-                .reduce((s1, s2) -> s1.toLowerCase().concat("-").concat(s2.toLowerCase())).orElse("");
+                .map(String::toLowerCase)
+                .reduce((s1, s2) -> s1.concat("-").concat(s2))
+                .orElse("");
     }
 
     /**
@@ -752,10 +785,10 @@ public class GeneratorAction extends MyAnAction {
             String url = entityClasses.controllerPath;
 
             // 前端页面使用entityDataTable
-            String mainClass= getControllerPath(entityClasses.getEntityName());
+            String mainClass = getControllerPath(entityClasses.getEntityName());
             StringBuilder content = new StringBuilder("<template>\n" +
-                    "<!--" + comment.text + "管理-->" +
-                    "    <div class='" + mainClass +  "'>\n" +
+                    "<!--" + comment.text + "管理-->\n" +
+                    "    <div class='" + mainClass + "'>\n" +
                     "        <entity-data-table\n" +
                     "            :additionalQueryParams=\"queryParams\"\n" +
                     "            :urlPrefix=\"urlPrefix\"\n" +
@@ -786,6 +819,10 @@ public class GeneratorAction extends MyAnAction {
 
             // 补充字段信息
             for (PsiField field : entityClasses.getEntityClass().getFields()) {
+                if (field.getName().equals("id")) {
+                    continue;
+                }
+
                 content.append("                {\n                    field: \"").append(field.getName()).append("\",\n");
 
                 PsiType type = field.getType();
@@ -798,43 +835,43 @@ public class GeneratorAction extends MyAnAction {
 
                 content.append("                    type: \"").append(tableType).append("\", \n");
                 content.append(
-                                "                    title: \"\",\n" +
+                        "                    title: \"\",\n" +
                                 "                    width: \"120px\",\n" +
-                                        "                    required: true,\n" +
-                                        "                    editable: true,\n" +
-                                        "                    needAdd: true,\n" +
-                                        "                    options: [],\n" +
-                                        "                    dialogType: \"text\",\n" +
-                                "                },\n" );
+                                "                    required: true,\n" +
+                                "                    editable: true,\n" +
+                                "                    needAdd: true,\n" +
+                                "                    options: [],\n" +
+                                "                    dialogType: \"text\",\n" +
+                                "                },\n");
             }
 
             content.append(
                     "                {\n" +
-                    "                    field: \"operations\",\n" +
-                    "                    type: \"operations\",\n" +
-                    "                    title: \"操作\",\n" +
-                    "                    width: \"120px\"\n" +
-                    "                }\n" +
-                    "            ],\n" +
-                    "\n" +
-                    "            queryParams: {\n" +
-                    "            },\n" +
-                    "            queryFlag: 0\n" +
-                    "        };\n" +
-                    "    },\n" +
-                    "\n" +
-                    "    mounted() {\n" +
-                    "        this.queryFlag++;\n" +
-                    "    },\n" +
-                    "\n" +
-                    "    methods: {}\n" +
-                    "};\n" +
-                    "</script>\n" +
-                    "\n" +
-                    "<style lang=\"scss\">\n" +
+                            "                    field: \"operations\",\n" +
+                            "                    type: \"operations\",\n" +
+                            "                    title: \"操作\",\n" +
+                            "                    width: \"120px\"\n" +
+                            "                }\n" +
+                            "            ],\n" +
+                            "\n" +
+                            "            queryParams: {\n" +
+                            "            },\n" +
+                            "            queryFlag: 0\n" +
+                            "        };\n" +
+                            "    },\n" +
+                            "\n" +
+                            "    mounted() {\n" +
+                            "        this.queryFlag++;\n" +
+                            "    },\n" +
+                            "\n" +
+                            "    methods: {}\n" +
+                            "};\n" +
+                            "</script>\n" +
+                            "\n" +
+                            "<style lang=\"scss\">\n" +
                             "." + mainClass + "{\n}" +
-                    "</style>\n" +
-                    "\n");
+                            "</style>\n" +
+                            "\n");
 
             psiUtils.createResourceFile("pages", entityClasses.getEntityName() + ".vue", content.toString());
         }
