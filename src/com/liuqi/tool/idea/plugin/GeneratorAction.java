@@ -393,20 +393,20 @@ public class GeneratorAction extends MyAnAction {
 
             tableName = tableName.replaceAll("\"", "");
 
-            content.append("</resultMap>")
+            content.append("</resultMap>\n\n")
                     .append("<sql id=\"columns\">\n")
                     .append(columns.toString())
-                    .append("</sql>\n")
+                    .append("</sql>\n\n")
                     .append("<sql id=\"tables\">\n")
                     .append("\nfrom ").append(tableName).append(" t1\n")
-                    .append("</sql>")
+                    .append("</sql>\n\n")
                     .append("<sql id=\"baseSelect\">\n")
                     .append("select \n<include refid=\"columns\"/>\n")
                     .append("<include refid=\"tables\"/>")
-                    .append("\n</sql>");
+                    .append("\n</sql>\n\n");
 
             content.append("<sql id=\"conditions\">\n")
-                .append("<where>");
+                    .append("<where>\n");
             if (config.getWithDeleted()) {
                 content.append(" t1.deleted = 0\n");
             }
@@ -420,7 +420,7 @@ public class GeneratorAction extends MyAnAction {
                     .append("</if>\n")
                     .append("<if test=\"null != keyword and '' != keyword\">\n")
                     .append("</if>\n")
-                    .append("</where>\n</sql>\n");
+                    .append("</where>\n</sql>\n\n");
 
             content.append("<select id=\"query\" parameterType=\"")
                     .append(psiUtils.getPackageAndName(entityClasses.getQueryClass()))
@@ -434,14 +434,14 @@ public class GeneratorAction extends MyAnAction {
                 content.append("\n<if test=\"null == orderByProperty or '' == orderByProperty\"> \norder by t1.create_time desc \n</if>");
             }
 
-            content.append("\n</select>");
+            content.append("\n</select>\n\n");
 
             content.append("<select id=\"count\" parameterType=\"")
                     .append(psiUtils.getPackageAndName(entityClasses.getQueryClass()))
                     .append("\" resultType=\"long\">")
                     .append("select count(1) <include refid=\"tables\"/> \n")
                     .append("<include refid=\"conditions\"/>\n")
-                    .append("\n</select>");
+                    .append("\n</select>\n\n");
 
             content.append("\n<select id=\"findAll\" parameterType=\"")
                     .append(psiUtils.getPackageAndName(entityClasses.getQueryClass()))
@@ -458,7 +458,7 @@ public class GeneratorAction extends MyAnAction {
                 content.append("\n<if test=\"null == orderByProperty or '' == orderByProperty\"> \norder by t1.create_time desc \n</if>");
             }
 
-            content.append("\n</select>");
+            content.append("\n</select>\n\n");
 
             // 增加批量新增语句
             content.append("\n<insert id=\"batchAdd\" parameterType=\"")
@@ -472,7 +472,7 @@ public class GeneratorAction extends MyAnAction {
                     .append("(")
                     .append(insertFields.toString())
                     .append(")")
-                    .append("\n</foreach></insert>")
+                    .append("\n</foreach></insert>\n\n")
             ;
 
             content.append("</mapper>");
@@ -834,8 +834,24 @@ public class GeneratorAction extends MyAnAction {
                 }
 
                 content.append("                    type: \"").append(tableType).append("\", \n");
+
+                // 通过column注释获取字段的中文名称
+                String title = "";
+                PsiAnnotation annotation = field.getAnnotation("java.persistence.Column");
+                if (null != annotation) {
+                    PsiAnnotationMemberValue memberValue = annotation.findAttributeValue("columnDefinition");
+                    if (null != memberValue) {
+                        String columnDefinition = memberValue.getText();
+                        int start = columnDefinition.indexOf("'");
+                        int end = columnDefinition.lastIndexOf("'");
+                        if (-1 != start && -1 != end) {
+                            title = columnDefinition.substring(start + 1, end);
+                        }
+                    }
+                }
+
                 content.append(
-                        "                    title: \"\",\n" +
+                        "                    title: \"" + title + "\",\n" +
                                 "                    width: \"120px\",\n" +
                                 "                    required: true,\n" +
                                 "                    editable: true,\n" +

@@ -42,9 +42,8 @@ public class EntityAnnotationGeneratorAction extends MyAnAction {
         String tableName = "t_" + MyStringUtils.toUnderLineStr(className);
         WriteCommandAction.runWriteCommandAction(project, () -> {
             PsiAnnotation psiAnnotation = psiUtils.addAnnotation(aClass, "javax.persistence.Entity");
-            psiUtils.addAnnotationFromStrAfter(aClass, "@Table(name = \"" + tableName + "\")", psiAnnotation);
-            psiUtils.addAnnotationFromStrAfter(aClass, "\n" +
-                    "@org.hibernate.annotations.Table(appliesTo = \"" + tableName + "\",comment = \"" + pTableComment + "\")", psiAnnotation);
+            PsiElement tableElement = psiUtils.addAnnotationFromStrAfter(aClass, "@Table(name = \"" + tableName + "\")", psiAnnotation);
+            psiUtils.addAnnotationFromStrAfter(aClass, "@org.hibernate.annotations.Table(appliesTo = \"" + tableName + "\",comment = \"" + pTableComment + "\")", tableElement);
             PsiJavaFile javaFile = (PsiJavaFile) aClass.getContainingFile();
             psiUtils.findClass("javax.persistence.Table").ifPresent(javaFile::importClass);
             psiUtils.findClass("javax.persistence.GeneratedValue").ifPresent(javaFile::importClass);

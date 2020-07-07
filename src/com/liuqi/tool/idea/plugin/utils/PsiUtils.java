@@ -1,7 +1,5 @@
 package com.liuqi.tool.idea.plugin.utils;
 
-import com.intellij.ide.highlighter.JavaFileType;
-import com.intellij.lang.jvm.annotation.JvmAnnotationAttribute;
 import com.intellij.openapi.fileTypes.FileTypes;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
@@ -14,7 +12,6 @@ import com.intellij.psi.impl.file.PsiDirectoryFactory;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.PsiShortNamesCache;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.java.generate.element.ElementFactory;
 import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
 
 import java.io.IOException;
@@ -120,11 +117,13 @@ public class PsiUtils {
         return psiAnnotation;
     }
 
-    public void addAnnotationFromStrAfter(PsiClass psiElement, String content, PsiElement posElement) {
+    public PsiElement addAnnotationFromStrAfter(PsiClass psiElement, String content, PsiElement posElement) {
         PsiAnnotation psiAnnotation = PsiElementFactory.getInstance(project).createAnnotationFromText(content, null);
         PsiModifierList psiModifierList = psiElement.getModifierList();
-        psiModifierList.addAfter(psiAnnotation, posElement);
+        PsiElement addResult = psiModifierList.addAfter(psiAnnotation, posElement);
         JavaCodeStyleManager.getInstance(project).shortenClassReferences(psiAnnotation);
+
+        return addResult;
     }
 
     public void addAnnotationFromStrAfter(PsiField psiElement, String content, PsiElement posElement) {
