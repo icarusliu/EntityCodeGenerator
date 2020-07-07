@@ -34,7 +34,7 @@ import static com.intellij.psi.PsiType.BOOLEAN;
  * entity
  * repository
  * service
- * web.rest
+ * web
  * <p>
  * 其中，Service层直接使用实现类，不使用接口；
  *
@@ -661,7 +661,7 @@ public class GeneratorAction extends MyAnAction {
      */
     private void createController(EntityClasses entityClasses) {
         // 在Service同目录下获取controller或者web目录
-        PsiDirectory controllerDirectory = directoryMap.get("rest");
+        PsiDirectory controllerDirectory = directoryMap.get("web");
 
         String prefix = config.getControllerPrefix();
 
