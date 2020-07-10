@@ -85,7 +85,8 @@ public class GeneratorAction extends MyAnAction {
             String value = psiUtils.getAnnotationValue(commentAnnotation, "value")
                     .orElseGet(() -> psiUtils.getAnnotationValue(commentAnnotation, "entityName").orElse(""));
             comment.text = value.replace("\"", "");
-            comment.author = psiUtils.getAnnotationValue(commentAnnotation, "author").orElse("EntityCodeGeneratoo").replace("\"", "");
+            comment.author = psiUtils.getAnnotationValue(commentAnnotation, "author").orElse("EntityCodeGenerator")
+                    .replace("\"", "");
         }
 
         // 在实体类所在包的同级的repository中创建Repository
@@ -925,10 +926,12 @@ public class GeneratorAction extends MyAnAction {
         // 获取BaseRepository，如果BaseRepository为空，则创建一个BaseRepository
         Optional<PsiClass> baseRepositoryClassOptional = psiUtils.findClass("BaseRepository");
         if (baseRepositoryClassOptional.isPresent()) {
+            // 如果已经有了，则直接使用这个作为父类
             consumer.accept(baseRepositoryClassOptional.get());
             return;
         }
 
+        // 如果没找到BaseRepository，则创建一个
         ClassCreator.of(module).init("BaseRepository",
                 "@NoRepositoryBean public interface BaseRepository<E> extends JpaRepository<E, Long>, JpaSpecificationExecutor<E> {}")
                 .importClass("NoRepositoryBean")
