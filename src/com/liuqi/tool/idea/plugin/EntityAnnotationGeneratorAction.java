@@ -7,7 +7,12 @@ import com.liuqi.tool.idea.plugin.utils.MyStringUtils;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * 
+ * 实体类注解生成器
+ * 包括以下四个功能：
+ * 1. 为实体类中的属性自动添加Column相关注解；
+ * 2. 为实体类增加Entity注解；
+ * 3. 为实体类增加Table注解；
+ * 4. 如果实体上包含了com.liuqi.common.web.common.annotation.Comment注解，那么会获取基值并作为表的中文注释；
  *
  * @author  LiuQi 2019/12/13-19:40
  * @version V1.0
@@ -23,6 +28,7 @@ public class EntityAnnotationGeneratorAction extends MyAnAction {
             return;
         }
 
+        // 通过Comment类获取实体中文名称，为表生成中文注释使用
         PsiAnnotation commentAnnotation = aClass.getAnnotation("com.liuqi.common.web.common.annotation.Comment");
         String tableComment = "";
         if (null != commentAnnotation) {
@@ -53,6 +59,7 @@ public class EntityAnnotationGeneratorAction extends MyAnAction {
             for (PsiField field : aClass.getFields()) {
                 String name = MyStringUtils.toUnderLineStr(field.getName());
                 if ("id".equals(name)) {
+                    // 主键特殊处理
                     PsiAnnotation psiAnnotation1 = psiUtils.addAnnotation(field, "javax.persistence.Id");
                     psiUtils.addAnnotationFromStrAfter(field, "@javax.persistence.GeneratedValue(strategy = GenerationType.IDENTITY)", psiAnnotation1);
                     continue;
@@ -73,7 +80,7 @@ public class EntityAnnotationGeneratorAction extends MyAnAction {
                     }
                 } else if (typeName.contains("Long")) {
                     annotationField = annotationField + "bigint comment ''\")";
-                } else if (psiType.getClass().isEnum() || typeName.toLowerCase().equals("boolean")) {
+                } else if (psiType.getClass().isEnum() || typeName.toLowerCase().contains("boolean")) {
                     annotationField = annotationField + "int(1) default 0 comment ''\")";
                 } else {
                     annotationField = annotationField + "integer comment ''\")";

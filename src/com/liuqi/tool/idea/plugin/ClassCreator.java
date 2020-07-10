@@ -3,7 +3,6 @@ package com.liuqi.tool.idea.plugin;
 import com.intellij.ide.highlighter.JavaFileType;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.roots.FileIndexFacade;
 import com.intellij.psi.*;
 import com.liuqi.tool.idea.plugin.utils.PsiUtils;
 import org.apache.commons.lang.StringUtils;
@@ -15,7 +14,7 @@ import java.util.function.Supplier;
 /**
  * 类创建器
  *
- * @author  LiuQi 2019/7/12-10:28
+ * @author LiuQi 2019/7/12-10:28
  * @version V1.0
  **/
 class ClassCreator {
@@ -32,12 +31,25 @@ class ClassCreator {
         return new ClassCreator(module);
     }
 
+    /**
+     * 根据名称及内容创建Java类
+     *
+     * @param name    Java类名称
+     * @param content Java类内容
+     * @return 创建器
+     */
     ClassCreator init(String name, String content) {
         javaFile = (PsiJavaFile) PsiFileFactory.getInstance(project).createFileFromText(name + ".java", JavaFileType.INSTANCE,
                 content);
         return this;
     }
 
+    /**
+     * 根据名称Import类
+     *
+     * @param className 类名
+     * @return 创建器
+     */
     ClassCreator importClass(String className) {
         if (org.apache.commons.lang3.StringUtils.isBlank(className)) {
             return this;
@@ -47,6 +59,13 @@ class ClassCreator {
         return this;
     }
 
+    /**
+     * 根据名称Import类
+     * 条件满足才导入
+     *
+     * @param className 类名
+     * @return 创建器
+     */
     ClassCreator importClassIf(String className, Supplier<Boolean> supplier) {
         if (supplier.get()) {
             importClass(className);
@@ -55,6 +74,13 @@ class ClassCreator {
         return this;
     }
 
+    /**
+     * 根据名称Import类
+     * 条件满足才导入
+     *
+     * @param nameSupplier 类名提供器
+     * @return 创建器
+     */
     ClassCreator importClassIf(Supplier<String> nameSupplier, Supplier<Boolean> supplier) {
         if (supplier.get()) {
             importClass(nameSupplier.get());
@@ -63,6 +89,12 @@ class ClassCreator {
         return this;
     }
 
+    /**
+     * 导入指定的类
+     *
+     * @param psiClass 需要导入的类
+     * @return 创建器
+     */
     ClassCreator importClass(PsiClass psiClass) {
         if (null == psiClass) {
             return this;
@@ -72,13 +104,24 @@ class ClassCreator {
         return this;
     }
 
+    /**
+     * 将当前类放到指定目录
+     *
+     * @param psiDirectory 类需要放置的目录
+     * @return 处理链，可以继续对所生成的类进行处理
+     */
     And addTo(PsiDirectory psiDirectory) {
-        return new And(((PsiJavaFile)Optional.ofNullable(psiDirectory.findFile(javaFile.getName())).orElseGet(() -> {
+        return new And(((PsiJavaFile) Optional.ofNullable(psiDirectory.findFile(javaFile.getName())).orElseGet(() -> {
             psiUtils.format(javaFile);
-            return (PsiJavaFile)psiDirectory.add(javaFile);
+            return (PsiJavaFile) psiDirectory.add(javaFile);
         })).getClasses()[0]);
     }
 
+    /**
+     * 为新生成的类增加Getter与Getter方法
+     *
+     * @return 创建器
+     */
     ClassCreator addGetterAndSetterMethods() {
         PsiClass aClass = javaFile.getClasses()[0];
         psiUtils.addGetterAndSetterMethods(aClass);
@@ -86,6 +129,12 @@ class ClassCreator {
         return this;
     }
 
+    /**
+     * 从目标类中复制属性到当前类
+     *
+     * @param srcClass 需要复制的属性所在的类
+     * @return 创建器
+     */
     ClassCreator copyFields(PsiClass srcClass) {
         PsiClass aClass = javaFile.getClasses()[0];
         PsiElementFactory elementFactory = PsiElementFactory.SERVICE.getInstance(project);

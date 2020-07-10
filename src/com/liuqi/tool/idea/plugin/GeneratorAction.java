@@ -26,17 +26,17 @@ import static com.intellij.psi.PsiType.BOOLEAN;
  * 实体类代码创建器
  * 生成代码路径：
  * bean
- * dto
- * mapper
- * query
+ * - dto: DTO对象存储路径
+ * - query：查询对象存储路径
+ * - mapper：DTO与Entity对象转换器路径
  * domain
- * dao
- * entity
- * repository
- * service
- * web
- * <p>
- * 其中，Service层直接使用实现类，不使用接口；
+ * - dao：MyBatis数据库操作类存储路径
+ * - repository：JPA数据库操作类存储路径
+ * - entity：实体类存储路径
+ * service：服务类存储路径
+ * web：控制器类存储路径
+ *
+ * 注意会使用两个公共包，源码地址：https://github.com/icarusliu/lcommon
  *
  * @author LiuQi 2019/7/11-10:50
  * @version V1.0
@@ -88,11 +88,15 @@ public class GeneratorAction extends MyAnAction {
             comment.author = psiUtils.getAnnotationValue(commentAnnotation, "author").orElse("EntityCodeGeneratoo").replace("\"", "");
         }
 
-        // 在它所在包的同级的repository中创建Repository
+        // 在实体类所在包的同级的repository中创建Repository
         WriteCommandAction.runWriteCommandAction(project, () ->
                 createRepository(entityClasses));
     }
 
+    /**
+     * 根据目录清单初始化目录
+     * 如果目录不存在则进行创建
+     */
     private void initDirs() {
         List<String> directories = Arrays.asList("bean", "bean/dto", "bean/mapper", "bean/query",
                 "domain", "domain/dao", "domain/entity", "domain/repository", "service",
