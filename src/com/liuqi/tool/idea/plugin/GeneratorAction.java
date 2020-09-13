@@ -600,6 +600,8 @@ public class GeneratorAction extends MyAnAction {
                         .append(entityClasses.getDtoClass().getName()).append("> dataList = query(query); return ExcelUtils.createExcelGenerator(getExcelColumns(), dataList).getWorkbook();} ");
             }
         } else {
+            content.append("\n@Override public BaseQuery createQuery() { return new ").append(entityClasses.getQueryClass().getName()).append("();}\n");
+
             // 删除方法使用逻辑删除
             if (config.getWithDeleted()) {
                 content.append("@Override public void delete(Long id) {repository.findById(id).ifPresent(item -> {item.setDeleted(true); " +
@@ -647,6 +649,7 @@ public class GeneratorAction extends MyAnAction {
                 .importClassIf("Workbook", () -> config.getExcelFunc())
                 .importClassIf("ExcelColumn", () -> config.getExcelFunc())
                 .importClassIf("MultipartFile", () -> config.getExcelFunc())
+                .importClass("BaseQuery")
                 .addTo(serviceImplDirectory)
                 .and(implClass -> {
                     entityClasses.setServiceImplClass(implClass);
