@@ -73,7 +73,7 @@ public class EntityAnnotationGeneratorAction extends MyAnAction {
                     }
                 } else if (typeName.contains("Long")) {
                     annotationField = annotationField + "bigint comment ''\")";
-                } else if (psiType.getClass().isEnum() || typeName.toLowerCase().equals("boolean")) {
+                } else if (psiType.getClass().isEnum() || "boolean".equals(typeName.toLowerCase())) {
                     annotationField = annotationField + "int(1) default 0 comment ''\")";
                 } else {
                     annotationField = annotationField + "integer comment ''\")";
