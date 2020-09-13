@@ -26,17 +26,17 @@ import static com.intellij.psi.PsiType.BOOLEAN;
  * 实体类代码创建器
  * 生成代码路径：
  * bean
- * dto
- * mapper
- * query
+ * - dto: DTO对象存储路径
+ * - query：查询对象存储路径
+ * - mapper：DTO与Entity对象转换器路径
  * domain
- * dao
- * entity
- * repository
- * service
- * web
- * <p>
- * 其中，Service层直接使用实现类，不使用接口；
+ * - dao：MyBatis数据库操作类存储路径
+ * - repository：JPA数据库操作类存储路径
+ * - entity：实体类存储路径
+ * service：服务类存储路径
+ * web：控制器类存储路径
+ *
+ * 注意会使用两个公共包，源码地址：https://github.com/icarusliu/lcommon
  *
  * @author LiuQi 2019/7/11-10:50
  * @version V1.0
@@ -85,14 +85,19 @@ public class GeneratorAction extends MyAnAction {
             String value = psiUtils.getAnnotationValue(commentAnnotation, "value")
                     .orElseGet(() -> psiUtils.getAnnotationValue(commentAnnotation, "entityName").orElse(""));
             comment.text = value.replace("\"", "");
-            comment.author = psiUtils.getAnnotationValue(commentAnnotation, "author").orElse("EntityCodeGeneratoo").replace("\"", "");
+            comment.author = psiUtils.getAnnotationValue(commentAnnotation, "author").orElse("EntityCodeGenerator")
+                    .replace("\"", "");
         }
 
-        // 在它所在包的同级的repository中创建Repository
+        // 在实体类所在包的同级的repository中创建Repository
         WriteCommandAction.runWriteCommandAction(project, () ->
                 createRepository(entityClasses));
     }
 
+    /**
+     * 根据目录清单初始化目录
+     * 如果目录不存在则进行创建
+     */
     private void initDirs() {
         List<String> directories = Arrays.asList("bean", "bean/dto", "bean/mapper", "bean/query",
                 "domain", "domain/dao", "domain/entity", "domain/repository", "service",
@@ -431,7 +436,7 @@ public class GeneratorAction extends MyAnAction {
             content.append("\n <if test=\"null != orderByProperty and '' != orderByProperty\">\n order by t1.${orderByProperty} #{orderByType}\n</if>");
 
             if (config.getWithCreateTime()) {
-                content.append("\n<if test=\"null == orderByProperty or '' == orderByProperty\"> \norder by t1.create_time desc \n</if>");
+                content.append("\n<if test=\"null == orderByProperty or '' == orderByProperty\"> \norder by t1.id desc \n</if>");
             }
 
             content.append("\n</select>\n\n");
@@ -569,6 +574,7 @@ public class GeneratorAction extends MyAnAction {
             content.append("@Resource private ").append(entityClasses.getMapperClass().getName()).append(" mapper; \n")
                     .append("\n@Resource private ").append(entityClasses.getRepositoryClass().getName()).append(" repository; \n")
                     .append("\n@Resource private ").append(entityClasses.getDaoClass().getName()).append(" ").append(daoFieldName).append("; \n")
+                    .append("\n@Override public BaseQuery createQuery() { return new ").append(entityClasses.getQueryClass().getName()).append("();}\n")
                     .append("\n @Transactional public void save(").append(entityClasses.getDtoClass().getName()).append(" dto) { repository.save(mapper.toEntity(dto));}")
                     .append("\n @Transactional  public void save(List<").append(entityClasses.getDtoClass().getName()).append("> dtos) { repository.").append(
                     saveAllMethod).append("(mapper.toEntity(dtos)); }")
@@ -921,10 +927,12 @@ public class GeneratorAction extends MyAnAction {
         // 获取BaseRepository，如果BaseRepository为空，则创建一个BaseRepository
         Optional<PsiClass> baseRepositoryClassOptional = psiUtils.findClass("BaseRepository");
         if (baseRepositoryClassOptional.isPresent()) {
+            // 如果已经有了，则直接使用这个作为父类
             consumer.accept(baseRepositoryClassOptional.get());
             return;
         }
 
+        // 如果没找到BaseRepository，则创建一个
         ClassCreator.of(module).init("BaseRepository",
                 "@NoRepositoryBean public interface BaseRepository<E> extends JpaRepository<E, Long>, JpaSpecificationExecutor<E> {}")
                 .importClass("NoRepositoryBean")
