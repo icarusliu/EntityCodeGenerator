@@ -74,9 +74,9 @@ public class EntityAnnotationGeneratorAction extends MyAnAction {
                     annotationField = annotationField + "numeric(24, 4) comment ''\")";
                 } else if (typeName.contains("LocalDateTime") || typeName.contains("Date")) {
                     if (typeName.toLowerCase().contains("update")) {
-                        annotationField = annotationField + "timestamp not null default current_timestamp on update current_timestamp comment ''\")";
+                        annotationField = annotationField + "datetime comment ''\")";
                     } else {
-                        annotationField = annotationField + "timestamp not null default current_timestamp comment ''\")";
+                        annotationField = annotationField + "datetime comment ''\")";
                     }
                 } else if (typeName.contains("Long")) {
                     annotationField = annotationField + "bigint comment ''\")";

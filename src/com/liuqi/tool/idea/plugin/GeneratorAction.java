@@ -253,7 +253,7 @@ public class GeneratorAction extends MyAnAction {
                 .append("Query ");
 
         if (baseQueryExists) {
-            content.append("extends BaseQuery{private String keyword; private Long id; private Long idNot;  }");
+            content.append("extends BaseQuery{private String keyword; private Long idNot;  }");
         } else {
             content.append("{private Integer page;  \nprivate Integer size; private String keyword; private Long id; private Long idNot;   }");
         }
