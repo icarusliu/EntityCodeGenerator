@@ -48,6 +48,7 @@ public class EntityAnnotationGeneratorAction extends MyAnAction {
         String tableName = "t_" + MyStringUtils.toUnderLineStr(className);
         WriteCommandAction.runWriteCommandAction(project, () -> {
             PsiAnnotation psiAnnotation = psiUtils.addAnnotation(aClass, "javax.persistence.Entity");
+            psiUtils.addAnnotation(aClass, "lombok.Data");
             PsiElement tableElement = psiUtils.addAnnotationFromStrAfter(aClass, "@Table(name = \"" + tableName + "\")", psiAnnotation);
             psiUtils.addAnnotationFromStrAfter(aClass, "@org.hibernate.annotations.Table(appliesTo = \"" + tableName + "\",comment = \"" + pTableComment + "\")", tableElement);
             PsiJavaFile javaFile = (PsiJavaFile) aClass.getContainingFile();
@@ -69,21 +70,21 @@ public class EntityAnnotationGeneratorAction extends MyAnAction {
                 String typeName = psiType.getCanonicalText();
                 String annotationField = "@javax.persistence.Column(name = \"" + name + "\", columnDefinition=\"";
                 if (typeName.contains("String") || typeName.contains("Char")) {
-                    annotationField = annotationField + "varchar(255) comment ''\")";
+                    annotationField = annotationField + "varchar(255) not null comment ''\")";
                 } else if (typeName.contains("Float") || typeName.contains("float") || typeName.contains("Double") || typeName.contains("double")) {
-                    annotationField = annotationField + "numeric(24, 4) comment ''\")";
+                    annotationField = annotationField + "numeric(24, 4) not null comment ''\")";
                 } else if (typeName.contains("LocalDateTime") || typeName.contains("Date")) {
                     if (typeName.toLowerCase().contains("update")) {
-                        annotationField = annotationField + "datetime comment ''\")";
+                        annotationField = annotationField + "datetime not null comment ''\")";
                     } else {
-                        annotationField = annotationField + "datetime comment ''\")";
+                        annotationField = annotationField + "datetime not null comment ''\")";
                     }
                 } else if (typeName.contains("Long")) {
-                    annotationField = annotationField + "bigint comment ''\")";
+                    annotationField = annotationField + "bigint not null comment ''\")";
                 } else if (psiType.getClass().isEnum() || typeName.toLowerCase().contains("boolean")) {
-                    annotationField = annotationField + "int(1) default 0 comment ''\")";
+                    annotationField = annotationField + "int(1) not null default 0 comment ''\")";
                 } else {
-                    annotationField = annotationField + "integer comment ''\")";
+                    annotationField = annotationField + "integer not null comment ''\")";
                 }
 
                 psiUtils.addAnnotationFromStrFirst(field, annotationField);

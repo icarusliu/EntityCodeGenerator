@@ -2,7 +2,6 @@ package com.liuqi.tool.idea.plugin.bean;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.PropertiesUtil;
-import com.intellij.psi.PsiClass;
 
 import java.io.File;
 import java.io.FileReader;
@@ -36,9 +35,6 @@ public class GeneratorConfig {
                     switch (k) {
                         case "common.func.excel":
                             config.setExcelFunc(Boolean.parseBoolean(v));
-                            break;
-                        case "service.interface":
-                            config.setWithInterface(Boolean.parseBoolean(v));
                             break;
                         case "controller.prefix":
                             config.setControllerPrefix(v);
@@ -85,11 +81,6 @@ public class GeneratorConfig {
     private Boolean excelFunc = false;
 
     /**
-     * Service是否使用接口模式
-     */
-    private Boolean withInterface = false;
-
-    /**
      * 控制器前缀
      */
     private String controllerPrefix = "/api";
@@ -98,6 +89,8 @@ public class GeneratorConfig {
     private String superService;
     private String superController;
     private String superDao;
+
+    private Boolean withUserId = false;
 
     /**
      * 就否有deleted字段
@@ -123,15 +116,6 @@ public class GeneratorConfig {
         return this;
     }
 
-    public Boolean getWithInterface() {
-        return withInterface;
-    }
-
-    public GeneratorConfig setWithInterface(Boolean withInterface) {
-        this.withInterface = withInterface;
-        return this;
-    }
-
     public String getControllerPrefix() {
         return controllerPrefix;
     }
@@ -143,11 +127,6 @@ public class GeneratorConfig {
 
     public GeneratorConfig excelFunc(Boolean excelFunc) {
         this.excelFunc = excelFunc;
-        return this;
-    }
-
-    public GeneratorConfig withInterface(Boolean withInterface) {
-        this.withInterface = withInterface;
         return this;
     }
 
@@ -245,5 +224,13 @@ public class GeneratorConfig {
 
     public Boolean getWithPage() {
         return this.withPage;
+    }
+
+    public Boolean getWithUserId() {
+        return withUserId;
+    }
+
+    public void setWithUserId(Boolean withUserId) {
+        this.withUserId = withUserId;
     }
 }

@@ -7,9 +7,14 @@ import com.intellij.psi.*;
 import com.liuqi.tool.idea.plugin.utils.PsiUtils;
 import org.apache.commons.lang.StringUtils;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * 类创建器
@@ -51,7 +56,7 @@ class ClassCreator {
      * @return 创建器
      */
     ClassCreator importClass(String className) {
-        if (org.apache.commons.lang3.StringUtils.isBlank(className)) {
+        if (StringUtils.isBlank(className)) {
             return this;
         }
 
@@ -129,18 +134,29 @@ class ClassCreator {
         return this;
     }
 
+    ClassCreator copyFields(PsiClass srcClass) {
+        return this.copyFields(srcClass, new ArrayList<>(0));
+    }
+
+    ClassCreator copyFields(PsiClass srcClass, String...disposedFields) {
+        return this.copyFields(srcClass, Arrays.stream(disposedFields).collect(Collectors.toList()));
+    }
+
     /**
      * 从目标类中复制属性到当前类
      *
      * @param srcClass 需要复制的属性所在的类
      * @return 创建器
      */
-    ClassCreator copyFields(PsiClass srcClass) {
+    ClassCreator copyFields(PsiClass srcClass, List<String> disposedFields) {
         PsiClass aClass = javaFile.getClasses()[0];
         PsiElementFactory elementFactory = PsiElementFactory.SERVICE.getInstance(project);
         for (PsiField field : srcClass.getFields()) {
             String name = field.getName();
             PsiType type = field.getType();
+            if (disposedFields.contains(name)) {
+                continue;
+            }
 
             psiUtils.findClass(type.getCanonicalText()).ifPresent(typeClass -> psiUtils.importClass(aClass, typeClass));
 
@@ -188,10 +204,10 @@ class ClassCreator {
                 }
             }
 
-            if (typeName.toLowerCase().equals("localdate")) {
+            if (typeName.equalsIgnoreCase("localdate")) {
                 annotationStringBuilder.append("@JsonFormat(pattern = \"yyyy-MM-dd\") ");
                 importClass("com.fasterxml.jackson.annotation.JsonFormat");
-            } else if (typeName.toLowerCase().equals("localdatetime")) {
+            } else if (typeName.equalsIgnoreCase("localdatetime")) {
                 annotationStringBuilder.append("@JsonFormat(pattern = \"yyyy-MM-dd HH:mm:ss\") ");
                 importClass("com.fasterxml.jackson.annotation.JsonFormat");
             }
@@ -214,8 +230,14 @@ class ClassCreator {
             this.psiClass = psiClass;
         }
 
-        void and(Consumer<PsiClass> callback) {
+        And and(Consumer<PsiClass> callback) {
             callback.accept(psiClass);
+            return this;
+        }
+
+        And and(Runnable runnable) {
+            runnable.run();
+            return this;
         }
     }
 }

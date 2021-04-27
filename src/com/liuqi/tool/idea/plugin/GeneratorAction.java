@@ -10,7 +10,7 @@ import com.intellij.psi.impl.file.PsiDirectoryFactory;
 import com.liuqi.tool.idea.plugin.bean.GeneratorConfig;
 import com.liuqi.tool.idea.plugin.utils.MyStringUtils;
 import com.liuqi.tool.idea.plugin.utils.PsiUtils;
-import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
 
@@ -35,7 +35,7 @@ import static com.intellij.psi.PsiType.BOOLEAN;
  * - entity：实体类存储路径
  * service：服务类存储路径
  * web：控制器类存储路径
- *
+ * <p>
  * 注意会使用两个公共包，源码地址：https://github.com/icarusliu/lcommon
  *
  * @author LiuQi 2019/7/11-10:50
@@ -43,9 +43,10 @@ import static com.intellij.psi.PsiType.BOOLEAN;
  **/
 public class GeneratorAction extends MyAnAction {
     private PsiDirectory workDir;
-    private Map<String, PsiDirectory> directoryMap = new HashMap<>(16);
+    private final Map<String, PsiDirectory> directoryMap = new HashMap<>(16);
     private GeneratorConfig config;
-    private Comment comment = new Comment();
+    private final Comment comment = new Comment();
+    private EntityClasses entityClasses;
 
     @Override
     public synchronized void actionPerformed(@NotNull AnActionEvent anActionEvent) {
@@ -65,7 +66,7 @@ public class GeneratorAction extends MyAnAction {
         // 获取当前实体所在目录的上两级目录，需要严格按说明中的目录组织，其它目录不考虑
         workDir = aClass.getContainingFile().getContainingDirectory().getParentDirectory().getParentDirectory();
 
-        EntityClasses entityClasses = new EntityClasses();
+        entityClasses = new EntityClasses();
 
         // 加载所有目录
         initDirs();
@@ -79,6 +80,9 @@ public class GeneratorAction extends MyAnAction {
         Optional.ofNullable(aClass.findFieldByName("createTime", false))
                 .ifPresent(field -> config.setWithCreateTime(true));
 
+        Optional.ofNullable(aClass.findFieldByName("userId", false))
+                .ifPresent(field -> config.setWithUserId(true));
+
         // 加载注释信息
         PsiAnnotation commentAnnotation = aClass.getAnnotation("com.liuqi.common.web.common.annotation.Comment");
         if (null != commentAnnotation) {
@@ -90,8 +94,7 @@ public class GeneratorAction extends MyAnAction {
         }
 
         // 在实体类所在包的同级的repository中创建Repository
-        WriteCommandAction.runWriteCommandAction(project, () ->
-                createRepository(entityClasses));
+        WriteCommandAction.runWriteCommandAction(project, this::createRepository);
     }
 
     /**
@@ -102,10 +105,6 @@ public class GeneratorAction extends MyAnAction {
         List<String> directories = Arrays.asList("bean", "bean/dto", "bean/mapper", "bean/query",
                 "domain", "domain/dao", "domain/entity", "domain/repository", "service",
                 "web");
-
-        if (config.getWithInterface()) {
-            directories.add("service/impl");
-        }
 
         directoryMap.clear();
 
@@ -134,44 +133,67 @@ public class GeneratorAction extends MyAnAction {
     }
 
     /**
-     * 根据实体类创建Repository、Service等操作类
+     * 创建Repository
      */
-    private void createClasses(EntityClasses entityClasses) {
+    private void createRepository() {
+        String entityName = entityClasses.getEntityName();
+        assert entityName != null;
+        PsiDirectory repositoryDirectory = directoryMap.get("repository");
+
+        String repositoryName = entityName.replace("Entity", "").concat("Repository");
+        getBaseRepositoryClass(repositoryDirectory, baseRepositoryClass ->
+                ClassCreator.of(module).init(repositoryName,
+                        comment.getContent("JPA数据库操作类") +
+                                "\npublic interface " + repositoryName + " extends BaseRepository<" + entityClasses.getEntityClassName() + "> {}")
+                        .importClass(entityClasses.getEntityClass())
+                        .importClass(baseRepositoryClass)
+                        .addTo(repositoryDirectory)
+                        .and(() -> this.createDtoClass("", entityClasses::setDtoClass))
+                        .and(() -> this.createDtoClass("Update", entityClasses::setDtoUpdateClass))
+                        .and((() -> this.createDtoClass("Add", entityClasses::setDtoAddClass)))
+                        .and(this::addExcelAnnotations)
+        );
+    }
+
+    private String getEntityName() {
         String className = entityClasses.getEntityClassName();
         assert className != null;
 
-        String entityName = className.replace("Entity", "");
+        return className.replace("Entity", "");
+    }
 
+    /**
+     * 创建DTO对象
+     */
+    private void createDtoClass(String name, Consumer<PsiClass> callback) {
+        String entityName = this.getEntityName();
         PsiDirectory dtoDirectory = directoryMap.get("dto");
 
         // 先检查是否存在AbstractBaseDTO对象，如果存在的话DTO对象需要继承自该对象
-        Optional<PsiClass> abstractBaseDTOOptional = psiUtils.findClass("AbstractBaseDTO");
-
-        String dtoContent = comment.getContent("对象") + "\npublic class " + entityName + "DTO";
-        boolean extendFromBaseDTO = false;
-        for (PsiClassType extendsListType : entityClasses.getEntityClass().getExtendsListTypes()) {
-            extendFromBaseDTO = extendsListType.getName().contains("AbstractBaseEntity");
-        }
-        if (abstractBaseDTOOptional.isPresent() && extendFromBaseDTO) {
-            // 存在时
-            dtoContent += " extends AbstractBaseDTO";
-        }
-
+        String dtoContent = comment.getContent("对象") + "\n@Data\npublic class " + entityName + name + "DTO";
         dtoContent += "{}";
 
+        // 过滤掉一些不必要的字段
+        List<String> disposedFields = new ArrayList<>();
+        if ("Add".equals(name) || "Update".equals(name)) {
+            disposedFields.addAll(Arrays.asList("deleted", "createTime", "userId", "userName", "updateTime", "userPhoto"));
+            if ("Add".equals(name)) {
+                disposedFields.add("id");
+            }
+        }
+
         // 根据Entity对象创建DTO对象
-        boolean pExtendFromBaseDTO = extendFromBaseDTO;
-        ClassCreator.of(module).init(entityName + "DTO", dtoContent)
-                .copyFields(entityClasses.getEntityClass())
-                .importClassIf("AbstractBaseDTO", () -> pExtendFromBaseDTO)
+        ClassCreator.of(module).init(entityName + name + "DTO", dtoContent)
+                .copyFields(entityClasses.getEntityClass(), disposedFields)
+                .importClass("lombok.Data")
                 .addTo(dtoDirectory)
-                .and(dtoClass -> addExcelAnnotations(entityClasses.setDtoClass(dtoClass)));
+                .and(callback);
     }
 
     /**
      * 增加Excel注解
      */
-    private void addExcelAnnotations(EntityClasses entityClasses) {
+    private void addExcelAnnotations() {
         // 如果Workbook存在并且ExcelUtils存在，则生成Excel上传下载功能
         if (config.getExcelFunc()) {
             // 给DTO类增加ExcelField注解
@@ -188,13 +210,13 @@ public class GeneratorAction extends MyAnAction {
                             .importClass(dtoClass, psiClass));
         }
 
-        createMapperClass(entityClasses);
+        createMapperClass();
     }
 
     /**
      * 创建Mapper对象
      */
-    private void createMapperClass(EntityClasses entityClasses) {
+    private void createMapperClass() {
         String entityName = entityClasses.getEntityName();
 
         // 增加mapper对象
@@ -216,7 +238,8 @@ public class GeneratorAction extends MyAnAction {
                         psiUtils.importClass(mapperClass, entityClasses.getDtoClass(), entityMapperClass);
 
                         // 先增加MyBatis的Dao对象及XML文件
-                        createQuery(entityClasses.setMapperClass(mapperClass));
+                        entityClasses.setMapperClass(mapperClass);
+                        createQuery();
                     });
         };
 
@@ -241,27 +264,30 @@ public class GeneratorAction extends MyAnAction {
     /**
      * 增加MyBatis相关文件
      */
-    private void createQuery(EntityClasses entityClasses) {
+    private void createQuery() {
         // 获取BaseQuery对象，没有就不使用
         boolean baseQueryExists = psiUtils.findClass("BaseQuery")
                 .isPresent();
 
         StringBuilder content = new StringBuilder()
                 .append(comment.getContent("查询对象"))
+                .append("\n@Data")
                 .append("\npublic class ")
                 .append(entityClasses.getEntityName())
                 .append("Query ");
 
         if (baseQueryExists) {
-            content.append("extends BaseQuery{private String keyword; private Long idNot;  }");
+            content.append("extends BaseQuery{private List<Long> ids; private Long idNot;  }");
         } else {
-            content.append("{private Integer page;  \nprivate Integer size; private String keyword; private Long id; private Long idNot;   }");
+            content.append("{private Integer page;  \nprivate Integer size; private List<Long> ids; private Long id; private Long idNot;   }");
         }
 
         // 先创建Query对象
         PsiDirectory queryDirectory = directoryMap.get("query");
         ClassCreator creator = ClassCreator.of(module)
-                .init(entityClasses.getEntityName() + "Query", content.toString());
+                .init(entityClasses.getEntityName() + "Query", content.toString())
+                .importClass("lombok.Data")
+                .importClass("java.util.List");
         if (!baseQueryExists) {
             creator.addGetterAndSetterMethods();
         } else {
@@ -274,16 +300,14 @@ public class GeneratorAction extends MyAnAction {
                     entityClasses.setQueryClass(queryClass);
 
                     // 在Repository的同级目录下创建dao目录及dao对象
-                    createDao(entityClasses);
+                    createDao();
                 });
     }
 
     /**
      * 添加Mybatis Dao
-     *
-     * @param entityClasses 类集
      */
-    private void createDao(EntityClasses entityClasses) {
+    private void createDao() {
         PsiDirectory daoDirectory = directoryMap.get("dao");
 
         if (config.getWithSuper()) {
@@ -297,7 +321,8 @@ public class GeneratorAction extends MyAnAction {
                     .addTo(daoDirectory)
                     .and(daoClass -> {
                         psiUtils.importClass(daoClass, entityClasses.getDtoClass());
-                        createDaoMappingFile(entityClasses.setDaoClass(daoClass));
+                        entityClasses.setDaoClass(daoClass);
+                        createDaoMappingFile();
                     });
         } else {
             ClassCreator.of(module).init(entityClasses.getEntityName() + "Dao",
@@ -312,17 +337,16 @@ public class GeneratorAction extends MyAnAction {
                     .addTo(daoDirectory)
                     .and(daoClass -> {
                         psiUtils.importClass(daoClass, entityClasses.getQueryClass(), entityClasses.getDtoClass());
-                        createDaoMappingFile(entityClasses.setDaoClass(daoClass));
+                        entityClasses.setDaoClass(daoClass);
+                        createDaoMappingFile();
                     });
         }
     }
 
     /**
      * 创建MyBatis映射文件
-     *
-     * @param entityClasses 实体相关类集合
      */
-    private void createDaoMappingFile(EntityClasses entityClasses) {
+    private void createDaoMappingFile() {
         // 获取mappers目录，在resources目录下，如果没有这个目录，那么创建一个目录
         ModuleRootManager rootManager = ModuleRootManager.getInstance(module);
         List<VirtualFile> sourceRoots = rootManager.getSourceRoots(JavaModuleSourceRootTypes.RESOURCES);
@@ -423,7 +447,10 @@ public class GeneratorAction extends MyAnAction {
                     .append("<if test=\"null != idNot\">\n")
                     .append("and t1.id <![CDATA[<>]]> #{idNot}\n")
                     .append("</if>\n")
-                    .append("<if test=\"null != keyword and '' != keyword\">\n")
+                    .append("<if test=\"null != ids\">\n")
+                    .append("and t1.id in <foreach collection=\"ids\" item=\"item\" open=\"(\" close=\")\" separator=\",\">\n")
+                    .append("#{item}\n")
+                    .append("</foreach>\n")
                     .append("</if>\n")
                     .append("</where>\n</sql>\n\n");
 
@@ -433,7 +460,7 @@ public class GeneratorAction extends MyAnAction {
                     .append("<include refid=\"baseSelect\"/>\n")
                     .append("<include refid=\"conditions\"/>\n");
 
-            content.append("\n <if test=\"null != orderByProperty and '' != orderByProperty\">\n order by t1.${orderByProperty} #{orderByType}\n</if>");
+            content.append("\n <if test=\"null != orderByProperty and '' != orderByProperty\">\n order by t1.${orderByProperty} ${orderByType}\n</if>");
 
             if (config.getWithCreateTime()) {
                 content.append("\n<if test=\"null == orderByProperty or '' == orderByProperty\"> \norder by t1.id desc \n</if>");
@@ -488,76 +515,26 @@ public class GeneratorAction extends MyAnAction {
             psiDirectory.add(psiFile);
         }
 
-        createService(entityClasses);
-    }
-
-    private void createService(EntityClasses entityClasses) {
-        if (!config.getWithInterface()) {
-            // 不创建接口了
-            createServiceImpl(entityClasses);
-            return;
-        }
-
-        // 增加服务接口
-        String serviceName = entityClasses.getEntityName().concat("Service");
-
-        String content = comment.getContent("服务") + "\npublic interface " +
-                serviceName +
-                "{" +
-                "void save(" + entityClasses.getDtoClass().getName() + " dto); " +
-                "\nvoid save(List<" + entityClasses.getDtoClass().getName() + "> dtos); " +
-                "\nvoid delete(Long id);" + "Optional<" + entityClasses.getDtoClass().getName() + "> findOne(Long id); " +
-                "\nList<" + entityClasses.getDtoClass().getName() + "> findAll(); " +
-                "\nList<" + entityClasses.getDtoClass().getName() + "> query(" + entityClasses.getQueryClass().getName() + " query); " +
-                "\nPageInfo<" + entityClasses.getDtoClass().getName() + "> pageQuery(" + entityClasses.getQueryClass().getName() + " query); ";
-
-        if (config.getExcelFunc()) {
-            content += "\nWorkbook downloadTemplate(); " +
-                    "\nvoid upload(MultipartFile file); " +
-                    "\nWorkbook download(" + entityClasses.getQueryClass().getName() + " query); ";
-        }
-
-        content += "}";
-        ClassCreator.of(module).init(serviceName, content)
-                .importClass(entityClasses.dtoClass)
-                .importClass("java.util.Optional")
-                .importClass("java.util.List")
-                .importClass("com.github.pagehelper.PageInfo")
-                .importClassIf("Workbook", () -> config.getExcelFunc())
-                .importClassIf("ExcelColumn", () -> config.getExcelFunc())
-                .importClassIf("MultipartFile", () -> config.getExcelFunc())
-                .addTo(directoryMap.get("service"))
-                .and(serviceClass -> {
-                    psiUtils.importClass(serviceClass, entityClasses.getQueryClass());
-                    psiUtils.importClass(serviceClass, entityClasses.getQueryClass());
-                    createServiceImpl(entityClasses.setServiceClass(serviceClass));
-                });
+        createServiceImpl();
     }
 
     /**
      * 创建服务实现类
      */
-    private void createServiceImpl(EntityClasses entityClasses) {
+    private void createServiceImpl() {
         String serviceName = entityClasses.getEntityName().concat("Service");
         // 增加接口服务实现
         PsiDirectory serviceImplDirectory = directoryMap.get("service");
 
         StringBuilder content = new StringBuilder(comment.getContent("服务") + "\n@Service public class ")
                 .append(serviceName);
-        if (config.getWithInterface()) {
-            content.append("Impl ");
-        }
         if (config.getWithSuper()) {
             content.append(" extends ")
                     .append(config.getSuperService().substring(config.getSuperService().lastIndexOf(".") + 1))
                     .append("<").append(entityClasses.getEntityClassName())
                     .append(",").append(entityClasses.getDtoClass().getName())
+                    .append(",").append(entityClasses.getQueryClass().getName())
                     .append("> ");
-        }
-
-        if (config.getWithInterface()) {
-            content.append("implements ")
-                    .append(serviceName);
         }
 
         content.append("{");
@@ -600,7 +577,45 @@ public class GeneratorAction extends MyAnAction {
                         .append(entityClasses.getDtoClass().getName()).append("> dataList = query(query); return ExcelUtils.createExcelGenerator(getExcelColumns(), dataList).getWorkbook();} ");
             }
         } else {
-            content.append("\n@Override public BaseQuery createQuery() { return new ").append(entityClasses.getQueryClass().getName()).append("();}\n");
+            content.append("\n@Override public ")
+                    .append(entityClasses.getQueryClass().getName())
+                    .append(" createQuery() { return new ")
+                    .append(entityClasses.getQueryClass().getName())
+                    .append("();}\n");
+
+            // 增加按用户删除、修改的接口
+            if (config.getWithUserId()) {
+                content.append("\npublic void update(Long userId, ")
+                        .append(entityClasses.getDtoUpdateClass().getName())
+                        .append(" update){ ")
+                        .append(entityClasses.getDtoClass().getName()).append(" dto = this.findOne(update.getId()).orElseThrow(() -> BusinessException.create(\"对象不存在\"));")
+                        .append("if (!dto.getUserId().equals(userId)) {throw BusinessException.create(\"权限不足\");}")
+                        .append("LBeanUtils.copyNonNullProperties(update, dto); this.save(dto); }\n")
+                        // 新增
+                        .append("\npublic ").append(entityClasses.getDtoClass().getName()).append(" add(Long userId, ")
+                        .append(entityClasses.getDtoAddClass().getName()).append(" addDto){")
+                        .append(entityClasses.getDtoClass().getName()).append(" dto = new ").append(entityClasses.getDtoClass().getName())
+                        .append("(); LBeanUtils.copyNonNullProperties(addDto, dto);  dto.setUserId(userId);  return this.save(dto); }\n")
+                        // 删除
+                        .append("\npublic void delete(Long userId, Long id){")
+                        .append(entityClasses.getDtoClass().getName()).append(" dto = this.findOne(id).orElseThrow(() -> BusinessException.create(\"对象不存在\"));")
+                        .append("if (!dto.getUserId().equals(userId)) {throw BusinessException.create(\"权限不足\");}")
+                        .append("this.delete(id); }\n")
+                ;
+            } else {
+                content.append("\npublic void update(")
+                        .append(entityClasses.getDtoUpdateClass().getName())
+                        .append(" update){ ")
+                        .append(entityClasses.getDtoClass().getName()).append(" dto = this.findOne(update.getId()).orElseThrow(() -> BusinessException.create(\"对象不存在\"));")
+                        .append("LBeanUtils.copyNonNullProperties(update, dto); this.save(dto); }\n")
+
+                        // 新增
+                        .append("\npublic ").append(entityClasses.getDtoClass().getName()).append(" add(")
+                        .append(entityClasses.getDtoAddClass().getName()).append(" addDto){")
+                        .append(entityClasses.getDtoClass().getName()).append(" dto = new ").append(entityClasses.getDtoClass().getName())
+                        .append("(); LBeanUtils.copyNonNullProperties(addDto, dto); return this.save(dto); }\n")
+                ;
+            }
 
             // 删除方法使用逻辑删除
             if (config.getWithDeleted()) {
@@ -624,51 +639,45 @@ public class GeneratorAction extends MyAnAction {
                         .append(entityClasses.dtoClass.getName())
                         .append(" save(")
                         .append(entityClasses.dtoClass.getName())
-                        .append(" dto) {if (null == dto.getId()) { dto.setCreateTime(LocalDateTime.now()); " +
-                                "dto.setUpdateTime(LocalDateTime.now());  } return super.save(dto); }");
+                        .append(" dto) {if (null == dto.getId()) { dto.setCreateTime(LocalDateTime.now()); }" +
+                                " return super.save(dto); }");
             }
         }
 
 
         content.append("}");
 
-        ClassCreator.of(module).init(serviceName + (config.getWithInterface() ? "Impl" : ""), content.toString())
+        ClassCreator.of(module).init(serviceName, content.toString())
                 .importClass(entityClasses.getEntityClass())
-                .importClass("javax.annotation.Resource")
                 .importClass("org.springframework.stereotype.Service")
-                .importClassIf("Transactional", () -> config.getWithInterface())
-                .importClassIf("java.util.Optional", () -> config.getWithInterface())
-                .importClassIf("java.util.List", () -> config.getWithInterface())
                 .importClassIf("java.time.LocalDateTime", () -> config.getWithCreateTime())
-                .importClassIf("PageHelper", () -> config.getWithInterface())
                 .importClassIf(config.getSuperService(), () -> config.getWithSuper())
+                .importClass("BusinessException")
+                .importClass("LBeanUtils")
+                .importClass(entityClasses.getDtoAddClass())
+                .importClass(entityClasses.getDtoUpdateClass())
                 .importClass("AbstractBaseEntityService")
-                .importClassIf("com.github.pagehelper.PageInfo", () -> config.getWithInterface())
                 .importClassIf(serviceName, () -> config.getExcelFunc())
                 .importClassIf("ExcelUtils", () -> config.getExcelFunc())
                 .importClassIf("Workbook", () -> config.getExcelFunc())
                 .importClassIf("ExcelColumn", () -> config.getExcelFunc())
                 .importClassIf("MultipartFile", () -> config.getExcelFunc())
-                .importClass("BaseQuery")
                 .addTo(serviceImplDirectory)
                 .and(implClass -> {
-                    entityClasses.setServiceImplClass(implClass);
+                    entityClasses.setServiceClass(implClass);
 
                     psiUtils.importClass(implClass, entityClasses.getServiceClass(),
-                            entityClasses.getRepositoryClass(), entityClasses.getMapperClass(), entityClasses.getDtoClass(),
-                            entityClasses.getQueryClass(),
-                            entityClasses.getDaoClass());
+                            entityClasses.getRepositoryClass(), entityClasses.getDtoClass(), entityClasses.getQueryClass(),
+                            entityClasses.getQueryClass());
 
-                    createController(entityClasses);
+                    createController();
                 });
     }
 
     /**
      * 创建控制器
-     *
-     * @param entityClasses 相关类
      */
-    private void createController(EntityClasses entityClasses) {
+    private void createController() {
         // 在Service同目录下获取controller或者web目录
         PsiDirectory controllerDirectory = directoryMap.get("web");
 
@@ -703,49 +712,81 @@ public class GeneratorAction extends MyAnAction {
 
         content.append(" public class ")
                 .append(entityName)
-                .append(suffix);
+                .append(suffix)
+        .append("{");
 
-        if (config.getWithSuper()) {
-            content.append(" extends ")
-                    .append(config.getSuperController())
-                    .append("<").append(entityClasses.getDtoClass().getName())
-                    .append(",").append(entityClasses.getQueryClass().getName())
-                    .append(",").append(entityClasses.getServiceImplClass().getName())
-                    .append("> {");
-        }
+//        if (config.getWithSuper()) {
+//            content.append(" extends ")
+//                    .append(config.getSuperController())
+//                    .append("<").append(entityClasses.getDtoClass().getName())
+//                    .append(",").append(entityClasses.getQueryClass().getName())
+//                    .append(",").append(entityClasses.getServiceImplClass().getName())
+//                    .append("> {");
+//        }
 
-        if (!config.getWithSuper()) {
-            String entityFieldName = MyStringUtils.firstLetterToLower(entityName);
-            String entityServiceName = entityFieldName + "Service";
+//        if (!config.getWithSuper()) {
+        String entityFieldName = MyStringUtils.firstLetterToLower(entityName);
+        String entityServiceName = entityFieldName + "Service";
 
-            content.append("@Resource private ")
-                    .append(entityClasses.getServiceClass().getName())
-                    .append(" ")
+        content.append("@Resource private ")
+                .append(entityClasses.getServiceClass().getName())
+                .append(" ")
+                .append(entityFieldName)
+                .append("Service; ");
+
+        // 新增方法
+        content
+                .append("@ApiOperation(\"新增\") @PostMapping(\"/add\")")
+                .append("public void add(@RequestBody  ").append(entityClasses.getDtoAddClass().getName()).append(" ").append(entityFieldName).append(") { ");
+        if (config.getWithUserId()) {
+            content.append("AuthUser user = SecurityUtils.getLoginUser().orElseThrow(LogoutException::new);  ")
                     .append(entityFieldName)
-                    .append("Service; ")
-                    .append("@ApiOperation(\"保存\") @PostMapping(\"/save\")")
-                    .append("public void save(@RequestBody  ").append(entityClasses.getDtoClass().getName()).append(" ").append(entityFieldName).append(") { ")
-                    .append(entityServiceName).append(".save(").append(entityFieldName).append("); }")
-                    .append("@ApiOperation(\"根据主键删除\")  @DeleteMapping(\"/delete/{id}\") public void delete(@PathVariable(\"id\") Long id) {").append(
-                    entityServiceName).append(".delete(id);}")
-                    .append("@ApiOperation(\"查找所有数据\") @GetMapping(\"/list\") public List<").append(entityClasses.getDtoClass().getName()).append(
-                    "> list() { return ").append(entityServiceName).append(".findAll(); }")
-                    .append("@ApiOperation(\"分页查询\") @PostMapping(\"/page-query\") public PageInfo<").append(entityClasses.getDtoClass().getName()).append(
-                    "> pageQuery(@RequestBody ")
-                    .append(entityClasses.getQueryClass().getName()).append(" query) { return ").append(entityFieldName).append(
-                    "Service.pageQuery(query);}")
-                    .append("@ApiOperation(\"查询记录数\") @PostMapping(\"/count\") public Long count(@RequestBody ")
-                    .append(entityClasses.getQueryClass().getName()).append(" query) { return ").append(entityFieldName).append(
-                    "Service.count(query);}");
-
-            if (config.getExcelFunc()) {
-                content.append("@ApiOperation(\"模板下载\") @GetMapping(\"/template-download\") public void " +
-                        "downloadTemplate(HttpServletResponse response) {ExcelUtils.writeExcelToResponse(").append(entityServiceName).append(".downloadTemplate(), response, \"template.xlsx\"); }")
-                        .append("@ApiOperation(\"数据上传\") @PostMapping(\"/upload\") public void upload(@RequestParam(\"file\")MultipartFile file) {").append(entityServiceName).append(".upload(file);}")
-                        .append("@ApiOperation(\"数据下载\") @PostMapping(\"/download\") public void download(@RequestBody ")
-                        .append(entityClasses.getQueryClass().getName()).append(" query, HttpServletResponse response) { ExcelUtils.writeExcelToResponse(").append(entityServiceName).append(".download(query), response, \"data.xlsx\"); }");
-            }
+                    .append("Service.add(user.getId(), ").append(entityFieldName).append(");}\n");
+        } else {
+            content.append(entityServiceName).append(".add(").append(entityFieldName).append("); }\n");
         }
+
+        // 修改
+        content
+                .append("@ApiOperation(\"修改\") @PostMapping(\"/update\")")
+                .append("public void update(@RequestBody  ").append(entityClasses.getDtoUpdateClass().getName()).append(" ").append(entityFieldName).append(") { ");
+        if (config.getWithUserId()) {
+            content.append("AuthUser user = SecurityUtils.getLoginUser().orElseThrow(LogoutException::new);  ")
+                    .append(entityServiceName)
+                    .append(".update(user.getId(), ").append(entityFieldName).append(");}\n");
+        } else {
+            content.append(entityServiceName).append(".update(").append(entityFieldName).append("); }\n");
+        }
+
+        // 删除
+        content
+                .append("@ApiOperation(\"根据主键删除\")  @DeleteMapping(\"/delete/{id}\") public void delete(@PathVariable(\"id\") Long id) {");
+        if (config.getWithUserId()) {
+            content.append("AuthUser user = SecurityUtils.getLoginUser().orElseThrow(LogoutException::new);  ")
+                    .append(entityServiceName).append(".delete(user.getId(), id);}");
+        } else {
+            content.append(entityServiceName).append(".delete(id);}");
+        }
+
+        // 查询
+        content.append("@ApiOperation(\"分页查询\") @PostMapping(\"/page-query\") public PageInfo<").append(entityClasses.getDtoClass().getName()).append(
+                "> pageQuery(@RequestBody ")
+                .append(entityClasses.getQueryClass().getName()).append(" query) { return ").append(entityFieldName).append(
+                "Service.pageQuery(query);}");
+
+        content
+                .append("@ApiOperation(\"查询记录数\") @PostMapping(\"/count\") public Long count(@RequestBody ")
+                .append(entityClasses.getQueryClass().getName()).append(" query) { return ").append(entityFieldName).append(
+                "Service.count(query);}");
+
+        if (config.getExcelFunc()) {
+            content.append("@ApiOperation(\"模板下载\") @GetMapping(\"/template-download\") public void " +
+                    "downloadTemplate(HttpServletResponse response) {ExcelUtils.writeExcelToResponse(").append(entityServiceName).append(".downloadTemplate(), response, \"template.xlsx\"); }")
+                    .append("@ApiOperation(\"数据上传\") @PostMapping(\"/upload\") public void upload(@RequestParam(\"file\")MultipartFile file) {").append(entityServiceName).append(".upload(file);}")
+                    .append("@ApiOperation(\"数据下载\") @PostMapping(\"/download\") public void download(@RequestBody ")
+                    .append(entityClasses.getQueryClass().getName()).append(" query, HttpServletResponse response) { ExcelUtils.writeExcelToResponse(").append(entityServiceName).append(".download(query), response, \"data.xlsx\"); }");
+        }
+//        }
 
         content.append("}");
 
@@ -760,22 +801,25 @@ public class GeneratorAction extends MyAnAction {
                 .importClass("RequestBody")
                 .importClass("io.swagger.annotations.Api")
                 .importClass("io.swagger.annotations.ApiOperation")
-                .importClass("java.util.List")
                 .importClass("PathVariable")
                 .importClass("RequestParam")
+                .importClass(entityClasses.getDtoAddClass())
+                .importClass(entityClasses.getDtoUpdateClass())
+                .importClassIf("AuthUser", config::getWithUserId)
+                .importClassIf("SecurityUtils", config::getWithUserId)
+                .importClassIf("LogoutException", config::getWithUserId)
                 .importClass("com.github.pagehelper.PageInfo")
-                .importClassIf(entityClasses.getServiceImplClass().getName(), () -> config.getWithSuper())
+                .importClassIf(entityClasses.getServiceClass().getName(), () -> config.getWithSuper())
                 .importClassIf("HttpServletResponse", () -> config.getExcelFunc())
                 .importClassIf("ExcelUtils", () -> config.getExcelFunc())
                 .importClassIf("MultipartFile", () -> config.getExcelFunc())
-                .importClassIf(config.getSuperController(), () -> config.getWithSuper())
                 .addTo(controllerDirectory)
                 .and(controllerClass -> {
                     psiUtils.importClass(controllerClass, entityClasses.getDtoClass(), entityClasses.getServiceClass(),
                             entityClasses.getQueryClass());
 
                     // 创建前端页面
-                    createPage(entityClasses);
+                    createPage();
                 });
     }
 
@@ -789,7 +833,7 @@ public class GeneratorAction extends MyAnAction {
     /**
      * 创建前端管理页面
      */
-    private void createPage(EntityClasses entityClasses) {
+    private void createPage() {
         if (config.getWithPage()) {
             String url = entityClasses.controllerPath;
 
@@ -903,25 +947,6 @@ public class GeneratorAction extends MyAnAction {
     }
 
     /**
-     * 创建Repository
-     */
-    private void createRepository(EntityClasses entityClasses) {
-        String entityName = entityClasses.getEntityName();
-        assert entityName != null;
-        PsiDirectory repositoryDirectory = directoryMap.get("repository");
-
-        String repositoryName = entityName.replace("Entity", "").concat("Repository");
-        getBaseRepositoryClass(repositoryDirectory, baseRepositoryClass ->
-                ClassCreator.of(module).init(repositoryName,
-                        comment.getContent("JPA数据库操作类") +
-                                "\npublic interface " + repositoryName + " extends BaseRepository<" + entityClasses.getEntityClassName() + "> {}")
-                        .importClass(entityClasses.getEntityClass())
-                        .importClass(baseRepositoryClass)
-                        .addTo(repositoryDirectory)
-                        .and(repositoryClass -> createClasses(entityClasses.setRepositoryClass(repositoryClass))));
-    }
-
-    /**
      * 获取BaseRepository，如果没有这个类则创建一个
      */
     private void getBaseRepositoryClass(
@@ -950,8 +975,9 @@ public class GeneratorAction extends MyAnAction {
         private PsiClass repositoryClass;
         private PsiClass mapperClass;
         private PsiClass dtoClass;
+        private PsiClass dtoAddClass;
+        private PsiClass dtoUpdateClass;
         private PsiClass serviceClass;
-        private PsiClass serviceImplClass;
         private PsiClass controllerClass;
         private PsiClass queryClass;
         private PsiClass daoClass;
@@ -993,21 +1019,12 @@ public class GeneratorAction extends MyAnAction {
             return this;
         }
 
-        PsiClass getServiceClass() {
+        public PsiClass getServiceClass() {
             return serviceClass;
         }
 
-        EntityClasses setServiceClass(PsiClass serviceClass) {
+        public EntityClasses setServiceClass(PsiClass serviceClass) {
             this.serviceClass = serviceClass;
-            return this;
-        }
-
-        public PsiClass getServiceImplClass() {
-            return serviceImplClass;
-        }
-
-        public EntityClasses setServiceImplClass(PsiClass serviceImplClass) {
-            this.serviceImplClass = serviceImplClass;
             return this;
         }
 
@@ -1045,6 +1062,22 @@ public class GeneratorAction extends MyAnAction {
         EntityClasses setDaoClass(PsiClass daoClass) {
             this.daoClass = daoClass;
             return this;
+        }
+
+        public PsiClass getDtoAddClass() {
+            return dtoAddClass;
+        }
+
+        public void setDtoAddClass(PsiClass dtoAddClass) {
+            this.dtoAddClass = dtoAddClass;
+        }
+
+        public PsiClass getDtoUpdateClass() {
+            return dtoUpdateClass;
+        }
+
+        public void setDtoUpdateClass(PsiClass dtoUpdateClass) {
+            this.dtoUpdateClass = dtoUpdateClass;
         }
     }
 
