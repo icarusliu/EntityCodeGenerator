@@ -1090,8 +1090,4 @@ public class GeneratorAction extends MyAnAction {
                     + " " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + " **/";
         }
     }
-
-    public static void main(String[] args) {
-        System.out.println("test\"".replace("\"", ""));
-    }
 }
